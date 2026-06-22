@@ -407,6 +407,9 @@ export default function App() {
                     let tts = new SpeechSynthesisUtterance(`Sinyal ${ev.t.includes("Bullish") ? "Bullish" : "Bearish"} pada ${ctf}`);
                     tts.lang = "id-ID";
                     window.speechSynthesis.speak(tts);
+                    if(window.Android && window.Android.showNotification) {
+                        window.Android.showNotification("XAUUSD Alert", `Sinyal ${ev.t.includes("Bullish") ? "Bullish" : "Bearish"} terdeteksi pada ${ctf}`);
+                    }
                 }
               }
             });
