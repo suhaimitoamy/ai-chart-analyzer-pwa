@@ -1,0 +1,8 @@
+
+/* MTF Matrix */
+.mtf-matrix {
+  margin-bottom: 15px;
+}
+.mtf-matrix > div > div {
+  transition: all 0.3s ease;
+}

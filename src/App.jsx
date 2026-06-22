@@ -227,6 +227,29 @@ function analyze(candles, htfCs, tf, session, livePrice) {
         ]
     };
 }
+function MtfMatrix({ data }) {
+    if (!data || !data["M5"]) return null;
+    let color = b => b === "BULLISH" ? "green" : b === "BEARISH" ? "red" : "yellow";
+    return (
+        <section className="card mtf-matrix">
+            <div className="section-title"><Clock3 size={16}/> MTF Alignment Matrix</div>
+            <div style={{display:"flex", gap:"10px", justifyContent:"space-between", marginTop:"10px"}}>
+                {["M5", "M15", "H1"].map(t => (
+                    <div key={t} style={{flex:1, textAlign:"center", padding:"10px", background:"#1a1a1a", borderRadius:"6px", border:`1px solid var(--${color(data[t])})`}}>
+                       <div style={{fontSize:"12px", color:"#888"}}>{t}</div>
+                       <div className={color(data[t])} style={{fontWeight:"bold", fontSize:"14px"}}>{data[t] || "WAIT"}</div>
+                    </div>
+                ))}
+            </div>
+            {data["M5"] === data["M15"] && data["M15"] === data["H1"] && data["M5"] !== "NEUTRAL" && (
+                <div style={{marginTop:"10px", padding:"8px", background:"#102a10", color:"#4ade80", borderRadius:"4px", fontSize:"13px", textAlign:"center"}}>
+                    🔥 Golden Alignment: Tren Kuat {data["M5"]}
+                </div>
+            )}
+        </section>
+    );
+}
+
 function defConcepts(s){return[{title:"Market Structure",status:"NONE",tf:"-",value:"Belum ada analisis"},{title:"Order Block",status:"NONE",tf:"-",value:"Belum ada OB"},{title:"Fair Value Gap",status:"NONE",tf:"-",value:"Belum ada FVG"},{title:"Liquidity",status:"NONE",tf:"-",value:"Belum ada sweep"},{title:"HTF Premium/Discount",status:"NONE",tf:"-",value:"Belum ada range"},{title:"Kill Zone",status:s.active?"ACTIVE":"WAIT",tf:"AUTO",value:s.name},{title:"Trade Setup",status:"WAIT",tf:"-",value:"Klik analisis"}]}
 function Metric({v,l,c="yellow"}){return <div className="metric card"><div className={c}>{v}</div><span>{l}</span></div>}
 function Title({icon,text}){return <div className="section-title">{icon}<span>{text}</span></div>}
@@ -238,6 +261,9 @@ function Nav({a,f,i,l}){return <button className={a?"nav-btn active":"nav-btn"} 
 
 export default function App() {
   let [tab, setTab] = useState("Dashboard");
+  let [mtfData, setMtfData] = useState({});
+  let [voiceAlert, setVoiceAlert] = useState(localStorage.getItem("voice_alert") !== "false");
+
   let [key, setKey] = useState(localStorage.getItem("twelve_api_key") || "");
 
   let [connStatus, setConnStatus] = useState("Offline");
@@ -310,7 +336,8 @@ export default function App() {
   async function fetchHistoryAndScan() {
     try {
       log("Memulihkan riwayat market dari background...");
-      let [m5, m15] = await Promise.all([fetchTf("5min").catch(()=>[]), fetchTf("15min").catch(()=>[])]);
+      let [m5, m15, h1] = await Promise.all([fetchTf("5min").catch(()=>[]), fetchTf("15min").catch(()=>[]), fetchTf("1h").catch(()=>[])]);
+      setCandles(old => ({ ...old, "M5": m5, "M15": m15, "H1": h1 }));
       if (!m5.length || !m15.length) return;
       let evs = [...scanEvents("M5", m5, m5[m5.length-1].close), ...scanEvents("M15", m15, m15[m15.length-1].close)];
       evs.sort((a,b)=>b.p - a.p).slice(0, 10).forEach(ev => {
@@ -359,19 +386,32 @@ export default function App() {
       
       if (shouldScan) {
         setTimeout(() => {
-          let tfs = ["M1", "M5", "M15", "H1"];
+          let tfs = ["M5", "M15", "H1"];
+          let newMtf = {};
           tfs.forEach(ctf => {
             let list = candles[ctf] || [];
             let activeList = b.cur[ctf] ? [...list, b.cur[ctf]] : list;
             if (activeList.length < 8) return;
+            
+            if (activeList.length >= 60) {
+               let r = analyze(activeList, [], ctf, curSession(Date.now()), tick.price);
+               newMtf[ctf] = r.bias;
+            }
+
             let events = scanEvents(ctf, activeList, tick.price);
             events.forEach(ev => {
               if (!emittedKeys.current.has(ev.key)) {
                 emittedKeys.current.add(ev.key);
                 log(ev.t);
+                if (voiceAlert && window.speechSynthesis && ev.p >= 65) {
+                    let tts = new SpeechSynthesisUtterance(`Sinyal ${ev.t.includes("Bullish") ? "Bullish" : "Bearish"} pada ${ctf}`);
+                    tts.lang = "id-ID";
+                    window.speechSynthesis.speak(tts);
+                }
               }
             });
           });
+          if(Object.keys(newMtf).length > 0) setMtfData(old => ({...old, ...newMtf}));
           if (emittedKeys.current.size > 1000) emittedKeys.current.clear();
         }, 0);
       }
@@ -532,6 +572,7 @@ Harga: ${p2(p)}`;
                 <div className={ses.active ? "green small" : "muted small"}>{ses.name}</div>
               </div>
             </section>
+            <MtfMatrix data={mtfData} />
             <div className="metrics">
               <Metric v={analyses.length} l="Analyses" />
               <Metric v={analyses.filter(a => a.bias === "BULLISH").length} l="Bullish" c="green" />
@@ -594,7 +635,12 @@ Harga: ${p2(p)}`;
             <button id="btn-save-connect" className="action" onClick={handleSaveConnect}>
               <span style={{display:"flex", alignItems:"center", gap:"6px"}}><KeyRound size={18} /> Save & Connect</span>
             </button>
-            <p className="muted">API key disimpan aman di localStorage HP Anda.</p>
+                        <p className="muted">API key disimpan aman di localStorage HP Anda.</p>
+            <div style={{marginTop:"20px"}} className="label">Voice Alerts (Text-to-Speech)</div>
+            <button className={voiceAlert ? "action" : "chip"} onClick={() => { setVoiceAlert(!voiceAlert); localStorage.setItem("voice_alert", !voiceAlert); }}>
+              {voiceAlert ? "🔊 Voice Alerts ON" : "🔇 Voice Alerts OFF"}
+            </button>
+            <p className="muted">Aktifkan untuk mendengarkan robot suara membacakan sinyal saat aplikasi berjalan.</p>
           </section>
         )}
       </main>
