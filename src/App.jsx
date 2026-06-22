@@ -186,24 +186,34 @@ export default function App() {
   }, [key, teleToken, teleChat]);
 
   function processTick(tick) {
+
+    let lastScan = window.lastScanTime || 0;
+    let nowMs = Date.now();
+    let shouldScan = (nowMs - lastScan) > 2000;
+    if (shouldScan) window.lastScanTime = nowMs;
+
     setCurrent(prev => {
       let b = build(prev, tick);
-      let tfs = ["M1", "M5", "M15", "H1"];
-      tfs.forEach(ctf => {
-        let list = candles[ctf] || [];
-        let activeList = b.cur[ctf] ? [...list, b.cur[ctf]] : list;
-        let events = scanEvents(ctf, activeList, tick.price);
-        events.forEach(ev => {
-          if (!emittedKeys.current.has(ev.key)) {
-            emittedKeys.current.add(ev.key);
-            log(ev.t);
-            if (ev.p >= 90) sendTele(`🚨 <b>Market Scanner</b>
-${ev.t}
-Time: ${time(Date.now())}`);
-          }
-        });
-      });
-      if (emittedKeys.current.size > 1000) emittedKeys.current.clear();
+      
+      if (shouldScan) {
+        setTimeout(() => {
+          let tfs = ["M1", "M5", "M15", "H1"];
+          tfs.forEach(ctf => {
+            let list = candles[ctf] || [];
+            let activeList = b.cur[ctf] ? [...list, b.cur[ctf]] : list;
+            if (activeList.length < 8) return;
+            let events = scanEvents(ctf, activeList, tick.price);
+            events.forEach(ev => {
+              if (!emittedKeys.current.has(ev.key)) {
+                emittedKeys.current.add(ev.key);
+                log(ev.t);
+                if (ev.p >= 90) sendTele(`🚨 <b>Market Scanner</b>\n${ev.t}\nTime: ${time(Date.now())}`);
+              }
+            });
+          });
+          if (emittedKeys.current.size > 1000) emittedKeys.current.clear();
+        }, 0);
+      }
 
       if (b.closed.length) {
         setCandles(old => {
@@ -218,7 +228,6 @@ Time: ${time(Date.now())}`);
       return b.cur;
     });
   }
-
   async function fetchTf(interval) {
     let url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=${interval}&outputsize=200&apikey=${encodeURIComponent(key.trim())}`;
     let res = await fetch(url);
