@@ -83,8 +83,7 @@ function Nav({a,f,i,l}){return <button className={a?"nav-btn active":"nav-btn"} 
 export default function App() {
   let [tab, setTab] = useState("Dashboard");
   let [key, setKey] = useState(localStorage.getItem("twelve_api_key") || "");
-  let [teleToken, setTeleToken] = useState(localStorage.getItem("tele_token") || "");
-  let [teleChat, setTeleChat] = useState(localStorage.getItem("tele_chat") || "");
+
   let [connStatus, setConnStatus] = useState("Offline");
   let [price, setPrice] = useState(Number(localStorage.getItem("last_price")) || 0);
   let [now, setNow] = useState(Date.now());
@@ -118,16 +117,7 @@ export default function App() {
     setLogs(p => [`[${time(Date.now(), "Asia/Jakarta", false)}] ${x}`, ...p].slice(0, 200));
   }
 
-  async function sendTele(msg) {
-    if (!teleToken || !teleChat) return;
-    try {
-      await fetch(`https://api.telegram.org/bot${teleToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: teleChat, text: msg, parse_mode: 'HTML' })
-      });
-    } catch(e) { console.error("Tele error", e); }
-  }
+
 
   function scheduleReconnect() {
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
@@ -144,8 +134,7 @@ export default function App() {
   function connect() {
     if (!key.trim()) return log("Masukkan Twelve Data API Key dulu.");
     localStorage.setItem("twelve_api_key", key.trim());
-    localStorage.setItem("tele_token", teleToken.trim());
-    localStorage.setItem("tele_chat", teleChat.trim());
+
     
     if (ws.current) { ws.current.onclose = null; ws.current.close(); }
     if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
@@ -159,7 +148,24 @@ export default function App() {
       retryCount.current = 0;
       log("WebSocket XAU/USD Connected.");
       w.send(JSON.stringify({ action: "subscribe", params: { symbols: "XAU/USD" } }));
+      fetchHistoryAndScan();
     };
+
+  async function fetchHistoryAndScan() {
+    try {
+      log("Memulihkan riwayat market dari background...");
+      let [m5, m15] = await Promise.all([fetchTf("5min").catch(()=>[]), fetchTf("15min").catch(()=>[])]);
+      if (!m5.length || !m15.length) return;
+      let evs = [...scanEvents("M5", m5, m5[m5.length-1].close), ...scanEvents("M15", m15, m15[m15.length-1].close)];
+      evs.sort((a,b)=>b.p - a.p).slice(0, 10).forEach(ev => {
+        if (!emittedKeys.current.has(ev.key)) {
+          emittedKeys.current.add(ev.key);
+          log(ev.t);
+        }
+      });
+      log("Riwayat market berhasil dipulihkan.");
+    } catch(e){}
+  }
 
     w.onmessage = e => {
       let d = JSON.parse(e.data);
@@ -183,7 +189,7 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibility);
     if (key.trim() && (!ws.current || ws.current.readyState !== WebSocket.OPEN)) connect();
     return () => { window.removeEventListener('online', handleOnline); document.removeEventListener('visibilitychange', handleVisibility); if (ws.current) { ws.current.onclose = null; ws.current.close(); } if (reconnectTimer.current) clearTimeout(reconnectTimer.current); };
-  }, [key, teleToken, teleChat]);
+  }, [key]);
 
   function processTick(tick) {
 
@@ -207,7 +213,6 @@ export default function App() {
               if (!emittedKeys.current.has(ev.key)) {
                 emittedKeys.current.add(ev.key);
                 log(ev.t);
-                if (ev.p >= 90) sendTele(`🚨 <b>Market Scanner</b>\n${ev.t}\nTime: ${time(Date.now())}`);
               }
             });
           });
@@ -271,7 +276,6 @@ TP2: ${p2(resObj.setup.tp2)}
 SL: ${p2(resObj.setup.stop)}
 Session: ${ses.name}`;
         log(msg.replace(/<[^>]*>?/gm, ''));
-        sendTele(msg);
       } else {
         log("SETUP WAIT: tunggu kondisi valid.");
       }
@@ -288,7 +292,6 @@ Session: ${ses.name}`;
 Pair: XAU/USD
 Harga: ${p2(p)}`;
       log(msg.replace(/<[^>]*>?/gm, ''));
-      sendTele(msg);
     }
     let win = (buy && p >= s.tp2) || (!buy && p <= s.tp2), loss = (buy && p <= s.stop) || (!buy && p >= s.stop);
     if (win || loss) {
@@ -297,7 +300,6 @@ Harga: ${p2(p)}`;
 Pair: XAU/USD
 Harga: ${p2(p)}`;
       log(msg.replace(/<[^>]*>?/gm, ''));
-      sendTele(msg);
       setTrades(t => [{ id: Date.now(), type: buy ? "BUY" : "SELL", result: win ? "WIN" : "LOSS", entry: price, tp: s.tp2, stop: s.stop, timestamp: Date.now() }, ...t]);
       watch.current = null;
     }
@@ -329,6 +331,18 @@ Harga: ${p2(p)}`;
       </div>
     `;
     window.html2pdf().from(el).save(`Trading_Report_${Date.now()}.pdf`);
+  }
+
+  function handleSaveConnect() {
+    let btn = document.getElementById("btn-save-connect");
+    if(btn) btn.innerHTML = '<span style="display:flex;align-items:center;gap:6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5"/></svg> Menyimpan...</span>';
+    setTimeout(() => {
+        connect();
+        if(btn) btn.innerHTML = '<span style="display:flex;align-items:center;gap:6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg> Terhubung!</span>';
+        setTimeout(() => {
+            if(btn) btn.innerHTML = '<span style="display:flex;align-items:center;gap:6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z"/><circle cx="16.5" cy="7.5" r=".5"/></svg> Save & Connect</span>';
+        }, 3000);
+    }, 500);
   }
 
   let latest = analyses[0];
@@ -419,15 +433,12 @@ Harga: ${p2(p)}`;
             <div className="page-title">Settings & API</div>
             <div className="label">Twelve Data API Key</div>
             <input value={key} onChange={e => setKey(e.target.value)} placeholder="Twelve Data API key" />
-            <div className="label">Telegram Bot Token</div>
-            <input value={teleToken} onChange={e => setTeleToken(e.target.value)} placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11" />
-            <div className="label">Telegram Chat ID</div>
-            <input value={teleChat} onChange={e => setTeleChat(e.target.value)} placeholder="-100123456789" />
-            
-            <button className="action" onClick={connect}>
-              <KeyRound size={18} /> Save & Connect All
+
+
+            <button id="btn-save-connect" className="action" onClick={handleSaveConnect}>
+              <span style={{display:"flex", alignItems:"center", gap:"6px"}}><KeyRound size={18} /> Save & Connect</span>
             </button>
-            <p className="muted">API key & bot info disimpan aman di localStorage HP Anda. Pesan otomatis dikirim ke telegram jika sinyal active.</p>
+            <p className="muted">API key disimpan aman di localStorage HP Anda.</p>
           </section>
         )}
       </main>
