@@ -298,6 +298,7 @@ function Nav({a,f,i,l}){return <button className={a?"nav-btn active":"nav-btn"} 
 
 export default function App() {
   let [tab, setTab] = useState("Dashboard");
+  let [isAnalyzing, setIsAnalyzing] = useState(false);
   let [mtfData, setMtfData] = useState({});
   let [voiceAlert, setVoiceAlert] = useState(localStorage.getItem("voice_alert") !== "false");
 
@@ -479,6 +480,7 @@ export default function App() {
 
   async function runAnalysis() {
     if (!key.trim()) return log("Error: API Key kosong. Masukkan di tab Settings.");
+    setIsAnalyzing(true);
     if (ws.current?.readyState !== WebSocket.OPEN) setConnStatus("Fallback API");
 
     log(`Memulai MTF fetch data ${tf} dari Twelve Data...`);
@@ -516,6 +518,7 @@ Session: ${ses.name}`;
         log("SETUP WAIT: tunggu kondisi valid.");
       }
     } catch (err) { log("Error Analisa: " + err.message); }
+    setIsAnalyzing(false);
   }
 
   function checkSetup(p) {
@@ -650,8 +653,8 @@ Harga: ${p2(p)}`;
                   </button>
                 ))}
               </div>
-              <button className="action" onClick={runAnalysis} style={{ height: "55px", fontSize: "16px", letterSpacing: "1px" }}>
-                <Cpu size={20} /> Jalankan Analisis AI ({tf})
+              <button className="action" onClick={isAnalyzing ? null : runAnalysis} disabled={isAnalyzing} style={{ height: "55px", fontSize: "16px", letterSpacing: "1px", opacity: isAnalyzing ? 0.7 : 1, cursor: isAnalyzing ? "wait" : "pointer" }}>
+                {isAnalyzing ? "⚙️ Memindai Market..." : <><Cpu size={20} /> Jalankan Analisis Algoritma ({tf})</>}
               </button>
               {latest && <Result x={latest} />}
             </section>
