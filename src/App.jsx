@@ -235,7 +235,7 @@ function MtfMatrix({ data }) {
             <div className="section-title"><Clock3 size={16}/> MTF Alignment Matrix</div>
             <div style={{display:"flex", gap:"10px", justifyContent:"space-between", marginTop:"10px"}}>
                 {["M5", "M15", "H1"].map(t => (
-                    <div key={t} style={{flex:1, textAlign:"center", padding:"10px", background:"#1a1a1a", borderRadius:"6px", border:`1px solid var(--${color(data[t])})`}}>
+                    <div key={t} style={{flex:1, textAlign:"center", padding:"10px", background:"#1e1e1e", borderRadius:"6px", border:`1px solid var(--${color(data[t])})`}}>
                        <div style={{fontSize:"12px", color:"#888"}}>{t}</div>
                        <div className={color(data[t])} style={{fontWeight:"bold", fontSize:"14px"}}>{data[t] || "WAIT"}</div>
                     </div>
