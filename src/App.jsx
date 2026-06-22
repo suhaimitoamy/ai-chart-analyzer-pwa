@@ -300,7 +300,7 @@ function Result({x}){
       </div>
       <p style={{ color: "var(--text-muted)", fontSize: "14px", lineHeight: "1.6", marginBottom: "20px" }}>{x.summary}</p>
       
-      <div style={{ background: "rgba(10,10,10,0.6)", borderRadius: "12px", padding: "15px", border: "1px solid rgba(255,255,255,0.05)" }}>
+      <div style={{ background: "rgba(10,10,10,0.6)", borderRadius: "12px", padding: "15px", border: "1px solid rgba(255,255,255,0.05)" }} className={x.setup.status === "ACTIVE" ? "pulse-gold slide-up" : "slide-up"}>
          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "10px", marginBottom: "10px" }}>
             <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>Status Setup</span>
             <span style={{ fontWeight: "bold", color: x.setup.status === "ACTIVE" ? "#d4af37" : "#888" }}>{x.setup.tradeType && x.setup.tradeType !== "NONE" ? `[${x.setup.tradeType}] ` : ""}{x.setup.status}</span>
@@ -352,9 +352,9 @@ function saveToJournal(setup, summary) {
       let journals = JSON.parse(localStorage.getItem("tradingLibraryManager.journals.v1") || "[]");
       journals.unshift(journal);
       localStorage.setItem("tradingLibraryManager.journals.v1", JSON.stringify(journals));
-      alert("✅ Berhasil disimpan ke Jurnal Trading Amy FX!");
+      if(window.showToast) window.showToast("✅ Berhasil disimpan ke Jurnal Trading Amy FX!"); else alert("✅ Berhasil disimpan");
   } catch(e) {
-      alert("Gagal menyimpan ke jurnal: " + e.message);
+      if(window.showToast) window.showToast("Gagal: " + e.message); else alert("Gagal menyimpan ke jurnal: " + e.message);
   }
 }
 
@@ -370,6 +370,7 @@ export default function App() {
   }, [bgScanner]);
   let [tab, setTab] = useState("Dashboard");
   let [isAnalyzing, setIsAnalyzing] = useState(false);
+  let [loadingText, setLoadingText] = useState("Menganalisis Algoritma...");
   let [mtfData, setMtfData] = useState({});
   let [voiceAlert, setVoiceAlert] = useState(localStorage.getItem("voice_alert") !== "false");
   let [bgScanner, setBgScanner] = useState(localStorage.getItem("bg_scanner") === "true");
