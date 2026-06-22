@@ -151,20 +151,54 @@ function calculateConfidence(bias, choppy, hasSweep, hasFvg, hasOb) {
     return Math.max(25, Math.min(85, score));
 }
 
-function buildTradeSetup(bias, currentPrice, currentZone, nearestSupport, nearestResistance, high60, low60, atr, fvg, ob) {
-    if (bias === "BULLISH") {
-        let entryZone = fvg.bullish !== "-" ? fvg.bullish : (ob.bullish !== "-" ? ob.bullish : `${p2(nearestSupport)} - ${p2(currentPrice)}`);
-        let valid = currentZone === "DISCOUNT" && (fvg.bullish !== "-" || ob.bullish !== "-");
-        let sl = Math.min(nearestSupport, low60) - atr;
-        return { status: valid ? "ACTIVE" : "WAIT", entry: entryZone, tp1: nearestResistance, tp2: high60, stop: sl };
-    } else if (bias === "BEARISH") {
-        let entryZone = fvg.bearish !== "-" ? fvg.bearish : (ob.bearish !== "-" ? ob.bearish : `${p2(currentPrice)} - ${p2(nearestResistance)}`);
-        let valid = currentZone === "PREMIUM" && (fvg.bearish !== "-" || ob.bearish !== "-");
-        let sl = Math.max(nearestResistance, high60) + atr;
-        return { status: valid ? "ACTIVE" : "WAIT", entry: entryZone, tp1: nearestSupport, tp2: low60, stop: sl };
+function buildTradeSetup(bias, currentPrice, currentZone, nearestSupport, nearestResistance, high60, low60, atr, fvg, ob, liquidityStr) {
+    let tradeType = "NONE";
+    let entryZone = "-";
+    let sl = 0;
+    let tp1 = 0;
+    let tp2 = 0;
+    let statusText = "WAIT";
+
+    if (currentZone === "PREMIUM") {
+        tradeType = "SELL";
+        entryZone = ob.bearish !== "-" ? ob.bearish : (fvg.bearish !== "-" ? fvg.bearish : "-");
+        
+        if (entryZone !== "-") {
+            let topZone = parseFloat(entryZone.split(" - ")[0]) || nearestResistance; // highest point of bearish POI is the left number usually? Wait, if it's high - low. findOrderBlock uses p2(low) - p2(high). Wait, fvg is right.high - left.low. Let's extract max.
+            let nums = entryZone.split(" - ").map(n => parseFloat(n));
+            let maxZone = Math.max(...nums);
+            
+            sl = maxZone + atr;
+            tp1 = nearestSupport; // TP1 is Swing Support
+            tp2 = low60; // Absolute low
+            
+            let liquiditySwept = liquidityStr.includes("Buy-side");
+            statusText = liquiditySwept ? "ACTIVE" : "WAIT (Menunggu Buy-side Sweep)";
+        } else {
+            statusText = "WAIT (Tidak ada Bearish POI)";
+        }
+    } else if (currentZone === "DISCOUNT") {
+        tradeType = "BUY";
+        entryZone = ob.bullish !== "-" ? ob.bullish : (fvg.bullish !== "-" ? fvg.bullish : "-");
+        
+        if (entryZone !== "-") {
+            let nums = entryZone.split(" - ").map(n => parseFloat(n));
+            let minZone = Math.min(...nums);
+            
+            sl = minZone - atr;
+            tp1 = nearestResistance; // TP1 is Swing Resistance
+            tp2 = high60; // Absolute high
+            
+            let liquiditySwept = liquidityStr.includes("Sell-side");
+            statusText = liquiditySwept ? "ACTIVE" : "WAIT (Menunggu Sell-side Sweep)";
+        } else {
+             statusText = "WAIT (Tidak ada Bullish POI)";
+        }
     } else {
-        return { status: "WAIT", entry: "Belum ada zona entry valid", tp1: 0, tp2: 0, stop: 0 };
+        statusText = "WAIT (Area Equilibrium)";
     }
+    
+    return { status: statusText, entry: entryZone, tp1, tp2, stop: sl, tradeType };
 }
 
 function analyze(candles, htfCs, tf, session, livePrice) {
@@ -202,7 +236,7 @@ function analyze(candles, htfCs, tf, session, livePrice) {
     let hasDirectionalFvg = (bias === "BULLISH" && fvg.bullish !== "-") || (bias === "BEARISH" && fvg.bearish !== "-");
     let hasDirectionalOb = (bias === "BULLISH" && ob.bullish !== "-") || (bias === "BEARISH" && ob.bearish !== "-");
     let confidence = calculateConfidence(bias, choppy, hasSweep, hasDirectionalFvg, hasDirectionalOb);
-    let setup = buildTradeSetup(bias, currentPrice, currentZone, nearestSupport, nearestResistance, high60, low60, atrVal, fvg, ob);
+    let setup = buildTradeSetup(bias, currentPrice, currentZone, nearestSupport, nearestResistance, high60, low60, atrVal, fvg, ob, structure.liquidity);
 
     let zoneText = currentZone === "PREMIUM" ? "premium" : currentZone === "DISCOUNT" ? "diskon" : "equilibrium";
     let summary = bias === "BULLISH" ? `Market dalam fase ${structure.phase} dengan bias bullish. Harga berada di zona ${zoneText}, resistance terdekat berada di ${p2(nearestResistance)}, dan struktur masih mendukung skenario buy selektif.` :
@@ -269,7 +303,7 @@ function Result({x}){
       <div style={{ background: "rgba(10,10,10,0.6)", borderRadius: "12px", padding: "15px", border: "1px solid rgba(255,255,255,0.05)" }}>
          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "10px", marginBottom: "10px" }}>
             <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>Status Setup</span>
-            <span style={{ fontWeight: "bold", color: x.setup.status === "ACTIVE" ? "#d4af37" : "#888" }}>{x.setup.status}</span>
+            <span style={{ fontWeight: "bold", color: x.setup.status === "ACTIVE" ? "#d4af37" : "#888" }}>{x.setup.tradeType && x.setup.tradeType !== "NONE" ? `[${x.setup.tradeType}] ` : ""}{x.setup.status}</span>
          </div>
          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
             <div style={{ display: "flex", flexDirection: "column" }}>
