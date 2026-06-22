@@ -359,6 +359,13 @@ function saveToJournal(setup, summary) {
 }
 
 export default function App() {
+  let [tab, setTab] = useState("Dashboard");
+  let [isAnalyzing, setIsAnalyzing] = useState(false);
+  let [loadingText, setLoadingText] = useState("Menganalisis Algoritma...");
+  let [mtfData, setMtfData] = useState({});
+  let [voiceAlert, setVoiceAlert] = useState(localStorage.getItem("voice_alert") !== "false");
+  let [bgScanner, setBgScanner] = useState(localStorage.getItem("bg_scanner") === "true");
+
   useEffect(() => {
     if (window.Android) {
       if (bgScanner && window.Android.startBackgroundScanner) {
@@ -368,12 +375,6 @@ export default function App() {
       }
     }
   }, [bgScanner]);
-  let [tab, setTab] = useState("Dashboard");
-  let [isAnalyzing, setIsAnalyzing] = useState(false);
-  let [loadingText, setLoadingText] = useState("Menganalisis Algoritma...");
-  let [mtfData, setMtfData] = useState({});
-  let [voiceAlert, setVoiceAlert] = useState(localStorage.getItem("voice_alert") !== "false");
-  let [bgScanner, setBgScanner] = useState(localStorage.getItem("bg_scanner") === "true");
 
   let [key, setKey] = useState(localStorage.getItem("twelve_api_key") || "");
 
