@@ -255,7 +255,44 @@ function Metric({v,l,c="yellow"}){return <div className="metric card"><div class
 function Title({icon,text}){return <div className="section-title">{icon}<span>{text}</span></div>}
 function Row({r}){return <div className="session-row"><div><strong className={r.active?"green":""}>{r.name}</strong><span>WIB: {r.wibRange}</span></div><em>{r.utcRange}</em></div>}
 function Concept({x}){return <div className="concept"><div className={`status ${x.status.toLowerCase()}`}>{x.status}</div><strong>{x.title}</strong><span>{x.tf}</span><p>{x.value}</p></div>}
-function Result({x}){return <div className="result"><div className={`bias ${x.bias.toLowerCase()}`}>{x.bias} • {x.confidence}%</div><p>{x.summary}</p><div className="setup"><strong>Setup: {x.setup.status}</strong><span>Entry: {x.setup.entry}</span><span>TP1: {p2(x.setup.tp1)}</span><span>TP2: {p2(x.setup.tp2)}</span><span>STOP: {p2(x.setup.stop)}</span></div></div>}
+function Result({x}){
+  let cColor = x.bias === "BULLISH" ? "#4ade80" : x.bias === "BEARISH" ? "#ff5252" : "#d4af37";
+  let bgGlow = x.bias === "BULLISH" ? "rgba(74, 222, 128, 0.1)" : x.bias === "BEARISH" ? "rgba(255, 82, 82, 0.1)" : "rgba(212, 175, 55, 0.1)";
+  return (
+    <div style={{ marginTop: "20px", border: `1px solid ${cColor}`, background: bgGlow, borderRadius: "16px", padding: "20px", position: "relative", overflow: "hidden", boxShadow: `0 0 20px ${bgGlow}` }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+         <h3 style={{ margin: 0, color: cColor, fontSize: "20px", fontWeight: 800 }}>{x.bias}</h3>
+         <div style={{ background: cColor, color: "#000", padding: "4px 12px", borderRadius: "20px", fontWeight: "bold", fontSize: "14px" }}>Confidence: {x.confidence}%</div>
+      </div>
+      <p style={{ color: "var(--text-muted)", fontSize: "14px", lineHeight: "1.6", marginBottom: "20px" }}>{x.summary}</p>
+      
+      <div style={{ background: "rgba(10,10,10,0.6)", borderRadius: "12px", padding: "15px", border: "1px solid rgba(255,255,255,0.05)" }}>
+         <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "10px", marginBottom: "10px" }}>
+            <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>Status Setup</span>
+            <span style={{ fontWeight: "bold", color: x.setup.status === "ACTIVE" ? "#d4af37" : "#888" }}>{x.setup.status}</span>
+         </div>
+         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+               <span style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase" }}>Entry Zone</span>
+               <span style={{ fontWeight: "bold", fontSize: "14px" }}>{x.setup.entry}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", textAlign: "right" }}>
+               <span style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase" }}>Stop Loss</span>
+               <span style={{ fontWeight: "bold", color: "#ff5252", fontSize: "14px" }}>{p2(x.setup.stop)}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", marginTop: "5px" }}>
+               <span style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase" }}>Take Profit 1</span>
+               <span style={{ fontWeight: "bold", color: "#4ade80", fontSize: "14px" }}>{p2(x.setup.tp1)}</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", marginTop: "5px", textAlign: "right" }}>
+               <span style={{ fontSize: "11px", color: "var(--text-muted)", textTransform: "uppercase" }}>Take Profit 2</span>
+               <span style={{ fontWeight: "bold", color: "#4ade80", fontSize: "14px" }}>{p2(x.setup.tp2)}</span>
+            </div>
+         </div>
+      </div>
+    </div>
+  );
+}
 function Trade({t}){return <div className="trade"><strong className={t.result==="WIN"?"green":"red"}>{t.type} • {t.result}</strong><span>Entry {p2(t.entry)}</span><span>TP {p2(t.tp)} • STOP {p2(t.stop)}</span></div>}
 function Nav({a,f,i,l}){return <button className={a?"nav-btn active":"nav-btn"} onClick={f}>{i}<span>{l}</span></button>}
 
@@ -597,21 +634,28 @@ Harga: ${p2(p)}`;
           </>
         )}
         {tab === "Analyze" && (
-          <section className="card">
-            <div className="page-title">Analisis MTF ICT</div>
-            <div className="muted">Session otomatis: {ses.name}</div>
-            <div className="tf-row">
-              {Object.keys(TF).map(x => (
-                <button key={x} onClick={() => setTf(x)} className={x === tf ? "chip active" : "chip"}>
-                  {x}
-                </button>
-              ))}
-            </div>
-            <button className="action" onClick={runAnalysis}>
-              <Cpu size={18} /> Analisis ICT MTF Sekarang
-            </button>
-            {latest && <Result x={latest} />}
-          </section>
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <section className="hero card" style={{ textAlign: "center", padding: "30px 20px" }}>
+               <div className="kicker">SMART MONEY ENGINE</div>
+               <h1 style={{ fontSize: "28px", margin: "10px 0", color: "var(--primary-gold)", textShadow: "0 0 20px rgba(212,175,55,0.3)" }}>AI Analyzer</h1>
+               <p style={{ color: "var(--text-muted)", fontSize: "14px", maxWidth: "250px", margin: "0 auto" }}>Pilih timeframe untuk memindai struktur, FVG, dan likuiditas secara instan.</p>
+               <div style={{ marginTop: "15px", display: "inline-block", background: "rgba(20,20,20,0.8)", padding: "6px 12px", borderRadius: "20px", border: "1px solid rgba(255,255,255,0.05)", fontSize: "12px", color: "var(--primary-gold)" }}>📍 {ses.name}</div>
+            </section>
+            
+            <section className="card">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginBottom: "20px" }}>
+                {Object.keys(TF).map(x => (
+                  <button key={x} onClick={() => setTf(x)} style={{ background: x === tf ? "var(--primary-gold)" : "rgba(255,255,255,0.03)", color: x === tf ? "#000" : "var(--text-main)", border: x === tf ? "none" : "1px solid rgba(255,255,255,0.1)", borderRadius: "10px", padding: "12px 0", fontWeight: "bold", transition: "all 0.2s" }}>
+                    {x}
+                  </button>
+                ))}
+              </div>
+              <button className="action" onClick={runAnalysis} style={{ height: "55px", fontSize: "16px", letterSpacing: "1px" }}>
+                <Cpu size={20} /> Jalankan Analisis AI ({tf})
+              </button>
+              {latest && <Result x={latest} />}
+            </section>
+          </div>
         )}
         {tab === "Terminal" && (
           <section className="terminal">
