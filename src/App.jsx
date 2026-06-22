@@ -769,11 +769,7 @@ Harga: ${p2(p)}`;
               <span style={{display:"flex", alignItems:"center", gap:"6px"}}><KeyRound size={18} /> Save & Connect</span>
             </button>
                         <p className="muted">API key disimpan aman di localStorage HP Anda.</p>
-            <div style={{marginTop:"20px"}} className="label">Background Scanner (24/7)</div>
-            <button className={bgScanner ? "action" : "chip"} onClick={() => { setBgScanner(!bgScanner); localStorage.setItem("bg_scanner", !bgScanner); }}>
-              {bgScanner ? "🔋 Background Scanner ON" : "🪫 Background Scanner OFF"}
-            </button>
-            <p className="muted">Aktifkan agar AI tetap memindai XAU/USD dan mengirim notifikasi saat layar terkunci.</p>
+
             <div style={{marginTop:"20px"}} className="label">Voice Alerts (Text-to-Speech)</div>
             <button className={voiceAlert ? "action" : "chip"} onClick={() => { setVoiceAlert(!voiceAlert); localStorage.setItem("voice_alert", !voiceAlert); }}>
               {voiceAlert ? "🔊 Voice Alerts ON" : "🔇 Voice Alerts OFF"}
