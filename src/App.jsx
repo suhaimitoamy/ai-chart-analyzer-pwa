@@ -17,60 +17,216 @@ function curSession(now){ return sessions(now).find(x=>x.active) || {name:"Off-S
 function newCandle(tick, tf) { let s=TF[tf], t=Math.floor(tick.time/s)*s; return {time:t, timeframe:tf, open:tick.price, high:tick.price, low:tick.price, close:tick.price, tickCount:1, isClosed:false} }
 function build(prev, tick) { let cur={...prev}, closed=[]; Object.keys(TF).forEach(tf=>{ let t=Math.floor(tick.time/TF[tf])*TF[tf], c=cur[tf]; if(!c || c.time!==t){ if(c) closed.push({...c, isClosed:true}); cur[tf]=newCandle(tick,tf); } else cur[tf]={...c, high:Math.max(c.high,tick.price), low:Math.min(c.low,tick.price), close:tick.price, tickCount:c.tickCount+1}; }); return {cur, closed} }
 
-function atr(cs){ let a=cs.slice(-14); return a.reduce((s,c)=>s+c.high-c.low,0)/(a.length||1) || 0.5 }
-function ph(cs){ let o=[]; for(let i=3;i<cs.length-1;i++) if(cs[i].high>cs[i-1].high&&cs[i].high>cs[i-2].high&&cs[i].high>cs[i-3].high&&cs[i].high>cs[i+1].high) o.push({i,level:cs[i].high}); return o }
-function pl(cs){ let o=[]; for(let i=3;i<cs.length-1;i++) if(cs[i].low<cs[i-1].low&&cs[i].low<cs[i-2].low&&cs[i].low<cs[i-3].low&&cs[i].low<cs[i+1].low) o.push({i,level:cs[i].low}); return o }
-function zones(cs,price){ let d=Math.max(atr(cs)*14,6), out=[], a=atr(cs); for(let i=2;i<cs.length;i++){ let x=cs[i-2], m=cs[i-1], y=cs[i], imp=Math.abs(m.close-m.open)/Math.max(m.high-m.low,.0001)>=.45||m.high-m.low>=a; if(imp&&y.low>x.high) out.push({type:"FVG",side:"bullish",low:x.high,high:y.low,status:Math.abs((x.high+y.low)/2-price)<=d?"ACTIVE":"CONTEXT"}); if(imp&&y.high<x.low) out.push({type:"FVG",side:"bearish",low:y.high,high:x.low,status:Math.abs((y.high+x.low)/2-price)<=d?"ACTIVE":"CONTEXT"}); } let r=cs.slice(-50), lo=r.reduce((a,b)=>b.low<a.low?b:a,r[0]), hi=r.reduce((a,b)=>b.high>a.high?b:a,r[0]); if(lo) out.push({type:"OB",side:"bullish",low:Math.min(lo.open,lo.close),high:Math.max(lo.open,lo.close),status:Math.abs((lo.open+lo.close)/2-price)<=d?"ACTIVE":"CONTEXT"}); if(hi) out.push({type:"OB",side:"bearish",low:Math.min(hi.open,hi.close),high:Math.max(hi.open,hi.close),status:Math.abs((hi.open+hi.close)/2-price)<=d?"ACTIVE":"CONTEXT"}); return out.sort((a,b)=>a.status===b.status?0:a.status==="ACTIVE"?-1:1) }
 
-function analyze(cs, htfCs, tf, ses, price) {
-  if (cs.length < 12) return {bias:"NEUTRAL",confidence:25,summary:"Candle belum cukup.",concepts:[],setup:{status:"WAIT",entry:"-",tp1:0,tp2:0,stop:0}};
-  let h=ph(cs), l=pl(cs);
-  let bsl=h.map(x=>x.level).filter(x=>x>price).sort((a,b)=>a-b)[0]||Math.max(...cs.map(c=>c.high));
-  let ssl=l.map(x=>x.level).filter(x=>x<price).sort((a,b)=>b-a)[0]||Math.min(...cs.map(c=>c.low));
-  
-  // HTF Context
-  let htfHi = htfCs && htfCs.length ? Math.max(...htfCs.slice(-40).map(c=>c.high)) : Math.max(...cs.slice(-80).map(c=>c.high));
-  let htfLo = htfCs && htfCs.length ? Math.min(...htfCs.slice(-40).map(c=>c.low)) : Math.min(...cs.slice(-80).map(c=>c.low));
-  let eq = (htfHi + htfLo) / 2;
-  let pd = price > eq ? "PREMIUM" : price < eq ? "DISCOUNT" : "EQUILIBRIUM";
-
-  let last = cs[cs.length-1];
-  let lh = h.findLast(x=>x.i < cs.length-2), ll = l.findLast(x=>x.i < cs.length-2);
-  let structure = "None";
-  if(lh && last.close > lh.level) structure = `Bullish BOS @ ${p2(lh.level)}`;
-  if(ll && last.close < ll.level) structure = `Bearish BOS @ ${p2(ll.level)}`;
-  
-  let bias = structure.includes("Bullish") ? "BULLISH" : structure.includes("Bearish") ? "BEARISH" : (last.close >= cs[Math.max(0, cs.length-4)].close ? "BULLISH" : "BEARISH");
-  
-  let z = zones(cs, price);
-  let active = z.filter(x=>x.status==="ACTIVE");
-  let valid = active.length && ((bias==="BULLISH" && pd==="DISCOUNT") || (bias==="BEARISH" && pd==="PREMIUM"));
-  let a = atr(cs);
-  
-  let setup = valid ? (bias==="BULLISH" ? 
-    {status:"ACTIVE", entry:`${p2(active[0].low)} - ${p2(active[0].high)}`, tp1:Math.max(bsl, price+a), tp2:Math.max(htfHi, price+a*2), stop:Math.min(ssl, htfLo)-a} : 
-    {status:"ACTIVE", entry:`${p2(active[0].low)} - ${p2(active[0].high)}`, tp1:Math.min(ssl, price-a), tp2:Math.min(htfLo, price-a*2), stop:Math.max(bsl, htfHi)+a}) 
-    : {status:"WAIT", entry:"Tunggu POI aktif + premium/discount sesuai bias", tp1:0, tp2:0, stop:0};
-
-  let concept = (title, type) => { let x = z.find(q=>q.type===type); return {title, status: z.some(q=>q.type===type && q.status==="ACTIVE")?"ACTIVE":x?"CONTEXT":"NONE", tf, value: x ? `${x.side} ${x.status} ${p2(x.low)} - ${p2(x.high)}` : `No ${type}`}; };
-
-  return {
-    bias, 
-    confidence: Math.min(90, 45 + (active.length?20:0) + (valid?20:0)), 
-    summary: `Bias ${bias}. Harga di HTF ${pd}. BSL ${p2(bsl)}, SSL ${p2(ssl)}.`,
-    concepts: [
-      {title:"Market Structure", status: structure==="None"?"NONE":"ACTIVE", tf, value:structure},
-      concept("Order Block", "OB"),
-      concept("Fair Value Gap", "FVG"),
-      {title:"Liquidity", status:"ACTIVE", tf, value:`BSL ${p2(bsl)} • SSL ${p2(ssl)}`},
-      {title:"HTF Premium/Discount", status:"ACTIVE", tf:"HTF", value:`${pd} • EQ ${p2(eq)}`},
-      {title:"Kill Zone", status:ses==="Off-Session"?"WAIT":"ACTIVE", tf:"AUTO", value:ses},
-      {title:"Trade Setup", status:setup.status, tf, value:setup.entry}
-    ],
-    setup
-  };
+function getSwings(candles, left=2, right=2) {
+    if (candles.length < left + right + 1) return { highs: [], lows: [] };
+    let highs = [], lows = [];
+    for (let i = left; i < candles.length - right; i++) {
+        let high = candles[i].high, low = candles[i].low;
+        let isHigh = true, isLow = true;
+        for (let j = 1; j <= left; j++) {
+            if (candles[i - j].high >= high) isHigh = false;
+            if (candles[i - j].low <= low) isLow = false;
+        }
+        for (let j = 1; j <= right; j++) {
+            if (candles[i + j].high >= high) isHigh = false;
+            if (candles[i + j].low <= low) isLow = false;
+        }
+        if (isHigh) highs.push(candles[i]);
+        if (isLow) lows.push(candles[i]);
+    }
+    return { highs, lows };
 }
 
+function calculateBias(candles) {
+    if (candles.length < 10) return "neutral";
+    let { highs, lows } = getSwings(candles);
+    if (highs.length >= 2 && lows.length >= 2) {
+        let hh = highs[highs.length - 1].high > highs[highs.length - 2].high;
+        let hl = lows[lows.length - 1].low > lows[lows.length - 2].low;
+        let lh = highs[highs.length - 1].high < highs[highs.length - 2].high;
+        let ll = lows[lows.length - 1].low < lows[lows.length - 2].low;
+        if (hh && hl) return "bullish";
+        if (lh && ll) return "bearish";
+        if (hh && ll) return "expanding";
+        if (lh && hl) return "choppy";
+    }
+    let closes = candles.slice(-5).map(c => c.close);
+    let avg = closes.reduce((a, b) => a + b, 0) / closes.length;
+    return candles[candles.length - 1].close > avg ? "bullish" : "bearish";
+}
+
+function isChoppy(candles) {
+    if (candles.length < 5) return false;
+    let choppyCount = candles.slice(-5).filter(c => {
+        let body = Math.abs(c.open - c.close);
+        let range = c.high - c.low;
+        return range > 0 && body / range < 0.3;
+    }).length;
+    return choppyCount >= 3;
+}
+
+function calculateAtr(candles) {
+    let ranges = candles.slice(-14).map(c => c.high - c.low);
+    return ranges.length ? ranges.reduce((a, b) => a + b, 0) / ranges.length : 0;
+}
+
+function buildStructureState(candles, swingHighs, swingLows, bias, nearestSupport, nearestResistance, choppy) {
+    let latest = candles[candles.length - 1];
+    let body = Math.abs(latest.open - latest.close);
+    let range = latest.high - latest.low;
+    let momentum = (range > 0 && body / range >= 0.5) ? (latest.close > latest.open ? "bullish" : "bearish") : "neutral";
+
+    let liquidity = "No fresh liquidity sweep on latest closed candle";
+    let lastLow = swingLows[swingLows.length - 1];
+    if (lastLow && latest.low < lastLow.low && latest.close > lastLow.low) {
+        liquidity = `Sell-side liquidity swept at ${p2(lastLow.low)}, reclaimed at ${p2(latest.close)}`;
+    }
+    let lastHigh = swingHighs[swingHighs.length - 1];
+    if (liquidity.startsWith("No fresh") && lastHigh && latest.high > lastHigh.high && latest.close < lastHigh.high) {
+        liquidity = `Buy-side liquidity swept at ${p2(lastHigh.high)}, reclaimed at ${p2(latest.close)}`;
+    }
+
+    let breakType = "None", breakLevel = null;
+    if (swingHighs.length > 0 && latest.close > swingHighs[swingHighs.length - 1].high) {
+        breakLevel = swingHighs[swingHighs.length - 1].high;
+        breakType = bias === "bearish" ? "MSS_BULLISH" : "BOS_BULLISH";
+    } else if (swingLows.length > 0 && latest.close < swingLows[swingLows.length - 1].low) {
+        breakLevel = swingLows[swingLows.length - 1].low;
+        breakType = bias === "bullish" ? "MSS_BEARISH" : "BOS_BEARISH";
+    }
+
+    let middleOfRange = false;
+    if (nearestSupport !== null && nearestResistance !== null) {
+        let fullRange = nearestResistance - nearestSupport;
+        let pos = fullRange > 0 ? (latest.close - nearestSupport) / fullRange : 0;
+        middleOfRange = pos >= 0.4 && pos <= 0.6;
+    }
+
+    let phase = "RANGING";
+    if (choppy) phase = "CHOPPY";
+    else if (breakType !== "None") phase = "EXPANSION";
+    else if (middleOfRange) phase = "RANGING";
+    else if (bias === "bullish") phase = "PULLBACK_OR_MARKUP";
+    else if (bias === "bearish") phase = "PULLBACK_OR_MARKDOWN";
+
+    let retest = "NONE";
+    if (breakType !== "None" && breakLevel !== null) {
+        let dist = Math.abs(latest.close - breakLevel);
+        retest = dist > 3.0 ? `WAIT_PULLBACK_TO_${p2(breakLevel)}` : `ACTIVE_RETEST_${breakType}`;
+    }
+
+    return { phase, breakStr: breakLevel !== null ? `${breakType} at ${p2(breakLevel)}` : breakType, retest, momentum, liquidity, breakType };
+}
+
+function findLatestFvg(candles) {
+    if (candles.length < 3) return { bullish: "-", bearish: "-", summary: "Belum cukup candle untuk FVG", direction: "none" };
+    for (let i = candles.length - 1; i >= 2; i--) {
+        let left = candles[i - 2], right = candles[i];
+        if (left.high < right.low) return { bullish: `${p2(left.high)} - ${p2(right.low)}`, bearish: "-", summary: `Bullish FVG ${p2(left.high)} - ${p2(right.low)}`, direction: "bullish" };
+        if (left.low > right.high) return { bullish: "-", bearish: `${p2(right.high)} - ${p2(left.low)}`, summary: `Bearish FVG ${p2(right.high)} - ${p2(left.low)}`, direction: "bearish" };
+    }
+    return { bullish: "-", bearish: "-", summary: "No clear FVG in recent candles", direction: "none" };
+}
+
+function findOrderBlock(candles) {
+    let recent = candles.slice(-20);
+    let bullishOb = [...recent].reverse().find(c => c.close < c.open);
+    let bearishOb = [...recent].reverse().find(c => c.close > c.open);
+    let bullish = bullishOb ? `${p2(bullishOb.low)} - ${p2(bullishOb.high)}` : "-";
+    let bearish = bearishOb ? `${p2(bearishOb.low)} - ${p2(bearishOb.high)}` : "-";
+    let summary = "Order block reference belum ditemukan";
+    if (bullish !== "-" && bearish !== "-") summary = `Bullish OB ${bullish} | Bearish OB ${bearish}`;
+    else if (bullish !== "-") summary = `Bullish OB ${bullish}`;
+    else if (bearish !== "-") summary = `Bearish OB ${bearish}`;
+    return { bullish, bearish, summary };
+}
+
+function calculateConfidence(bias, choppy, hasSweep, hasFvg, hasOb) {
+    let score = bias === "NEUTRAL" ? 35 : 55;
+    if (hasSweep) score += 10;
+    if (hasFvg) score += 10;
+    if (hasOb) score += 10;
+    if (choppy) score -= 15;
+    return Math.max(25, Math.min(85, score));
+}
+
+function buildTradeSetup(bias, currentPrice, currentZone, nearestSupport, nearestResistance, high60, low60, atr, fvg, ob) {
+    if (bias === "BULLISH") {
+        let entryZone = fvg.bullish !== "-" ? fvg.bullish : (ob.bullish !== "-" ? ob.bullish : `${p2(nearestSupport)} - ${p2(currentPrice)}`);
+        let valid = currentZone === "DISCOUNT" && (fvg.bullish !== "-" || ob.bullish !== "-");
+        let sl = Math.min(nearestSupport, low60) - atr;
+        return { status: valid ? "ACTIVE" : "WAIT", entry: entryZone, tp1: nearestResistance, tp2: high60, stop: sl };
+    } else if (bias === "BEARISH") {
+        let entryZone = fvg.bearish !== "-" ? fvg.bearish : (ob.bearish !== "-" ? ob.bearish : `${p2(currentPrice)} - ${p2(nearestResistance)}`);
+        let valid = currentZone === "PREMIUM" && (fvg.bearish !== "-" || ob.bearish !== "-");
+        let sl = Math.max(nearestResistance, high60) + atr;
+        return { status: valid ? "ACTIVE" : "WAIT", entry: entryZone, tp1: nearestSupport, tp2: low60, stop: sl };
+    } else {
+        return { status: "WAIT", entry: "Belum ada zona entry valid", tp1: 0, tp2: 0, stop: 0 };
+    }
+}
+
+function analyze(candles, htfCs, tf, session, livePrice) {
+    if (candles.length < 60) return { bias: "NEUTRAL", confidence: 25, summary: "Candle belum cukup (min 60).", concepts: [], setup: { status: "WAIT", entry: "-", tp1: 0, tp2: 0, stop: 0 } };
+    let recent = candles.slice(-60);
+    let latest = recent[recent.length - 1];
+    let currentPrice = livePrice || latest.close;
+    let previous = recent.slice(0, -1);
+    let last20 = previous.slice(-20).length ? previous.slice(-20) : recent;
+    let high20 = Math.max(...last20.map(c => c.high));
+    let low20 = Math.min(...last20.map(c => c.low));
+    let high60 = Math.max(...recent.map(c => c.high));
+    let low60 = Math.min(...recent.map(c => c.low));
+    let eq = (high60 + low60) / 2.0;
+    let currentZone = currentPrice > eq ? "PREMIUM" : currentPrice < eq ? "DISCOUNT" : "EQUILIBRIUM";
+
+    let { highs: swingHighs, lows: swingLows } = getSwings(recent);
+    let nearestSupport = swingLows.map(s => s.low).filter(l => l < currentPrice).sort((a, b) => b - a)[0] || low20;
+    let nearestResistance = swingHighs.map(s => s.high).filter(h => h > currentPrice).sort((a, b) => a - b)[0] || high20;
+    
+    let rawBias = calculateBias(recent);
+    let choppy = isChoppy(recent);
+    let atrVal = calculateAtr(recent);
+    if (atrVal <= 0) atrVal = Math.max(1.0, (high60 - low60) / 10.0);
+    
+    let structure = buildStructureState(recent, swingHighs, swingLows, rawBias, nearestSupport, nearestResistance, choppy);
+    let fvg = findLatestFvg(recent);
+    let ob = findOrderBlock(recent);
+
+    let bias = "NEUTRAL";
+    if (rawBias === "bearish" || (structure.momentum === "bearish" && currentPrice < eq)) bias = "BEARISH";
+    if (rawBias === "bullish" || (structure.momentum === "bullish" && currentPrice > eq)) bias = "BULLISH";
+
+    let hasSweep = !structure.liquidity.startsWith("No fresh");
+    let hasDirectionalFvg = (bias === "BULLISH" && fvg.bullish !== "-") || (bias === "BEARISH" && fvg.bearish !== "-");
+    let hasDirectionalOb = (bias === "BULLISH" && ob.bullish !== "-") || (bias === "BEARISH" && ob.bearish !== "-");
+    let confidence = calculateConfidence(bias, choppy, hasSweep, hasDirectionalFvg, hasDirectionalOb);
+    let setup = buildTradeSetup(bias, currentPrice, currentZone, nearestSupport, nearestResistance, high60, low60, atrVal, fvg, ob);
+
+    let zoneText = currentZone === "PREMIUM" ? "premium" : currentZone === "DISCOUNT" ? "diskon" : "equilibrium";
+    let summary = bias === "BULLISH" ? `Market dalam fase ${structure.phase} dengan bias bullish. Harga berada di zona ${zoneText}, resistance terdekat berada di ${p2(nearestResistance)}, dan struktur masih mendukung skenario buy selektif.` :
+                 bias === "BEARISH" ? `Market dalam fase ${structure.phase} dengan bias bearish. Harga berada di zona ${zoneText}, support terdekat berada di ${p2(nearestSupport)}, dan struktur masih menekan harga ke bawah.` :
+                 `Market dalam fase ${structure.phase} dengan bias netral. Harga berada di zona ${zoneText} dan belum ada konfirmasi struktur yang cukup kuat untuk entry agresif.`;
+
+    let concept = (title, status, tf_label, value) => ({ title, status, tf: tf_label, value });
+    
+    return {
+        bias,
+        confidence,
+        summary,
+        setup,
+        concepts: [
+            concept("Market Structure", structure.breakStr === "None" ? "NONE" : "ACTIVE", tf, structure.breakStr === "None" ? "Belum ada CHoCH/MSS baru" : structure.breakStr),
+            concept("Order Block", (bias==="BULLISH" && ob.bullish!=="-")||(bias==="BEARISH" && ob.bearish!=="-") ? "ACTIVE" : "CONTEXT", tf, ob.summary),
+            concept("Fair Value Gap", (bias==="BULLISH" && fvg.bullish!=="-")||(bias==="BEARISH" && fvg.bearish!=="-") ? "ACTIVE" : "CONTEXT", tf, fvg.summary),
+            concept("Liquidity", hasSweep ? "ACTIVE" : "WAIT", tf, structure.liquidity),
+            concept("HTF Premium/Discount", "ACTIVE", tf, `Harga di zona ${currentZone}. EQ ${p2(eq)}`),
+            concept("Kill Zone", session.active ? "ACTIVE" : "WAIT", "AUTO", session.name),
+            concept("Trade Setup", setup.status, tf, setup.entry)
+        ]
+    };
+}
 function defConcepts(s){return[{title:"Market Structure",status:"NONE",tf:"-",value:"Belum ada analisis"},{title:"Order Block",status:"NONE",tf:"-",value:"Belum ada OB"},{title:"Fair Value Gap",status:"NONE",tf:"-",value:"Belum ada FVG"},{title:"Liquidity",status:"NONE",tf:"-",value:"Belum ada sweep"},{title:"HTF Premium/Discount",status:"NONE",tf:"-",value:"Belum ada range"},{title:"Kill Zone",status:s.active?"ACTIVE":"WAIT",tf:"AUTO",value:s.name},{title:"Trade Setup",status:"WAIT",tf:"-",value:"Klik analisis"}]}
 function Metric({v,l,c="yellow"}){return <div className="metric card"><div className={c}>{v}</div><span>{l}</span></div>}
 function Title({icon,text}){return <div className="section-title">{icon}<span>{text}</span></div>}
