@@ -19,6 +19,19 @@
           });
         });
       }
+
+      // GLOBAL AMY FX HAPTIC
+      window.triggerHaptic = function(pattern) {
+        if (window.Android && window.Android.triggerHaptic) {
+          window.Android.triggerHaptic(pattern || 20);
+        } else if ('vibrate' in navigator) {
+          navigator.vibrate(pattern || 20);
+        }
+      };
+      document.addEventListener('click', function(e) {
+        let btn = e.target.closest('button, a, .card, .nav-btn, .action-btn, .clickable');
+        if (btn) window.triggerHaptic(20);
+      });
     </script>
   </body>
 </html>
