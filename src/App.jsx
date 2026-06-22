@@ -15,6 +15,349 @@ function ph(cs){let o=[];for(let i=3;i<cs.length-1;i++)if(cs[i].high>cs[i-1].hig
 function pl(cs){let o=[];for(let i=3;i<cs.length-1;i++)if(cs[i].low<cs[i-1].low&&cs[i].low<cs[i-2].low&&cs[i].low<cs[i-3].low&&cs[i].low<cs[i+1].low)o.push({i,level:cs[i].low});return o}
 function zones(cs,price){let d=Math.max(atr(cs)*14,6),out=[],a=atr(cs);for(let i=2;i<cs.length;i++){let x=cs[i-2],m=cs[i-1],y=cs[i],imp=Math.abs(m.close-m.open)/Math.max(m.high-m.low,.0001)>=.45||m.high-m.low>=a;if(imp&&y.low>x.high)out.push({type:"FVG",side:"bullish",low:x.high,high:y.low,status:Math.abs((x.high+y.low)/2-price)<=d?"ACTIVE":"CONTEXT"});if(imp&&y.high<x.low)out.push({type:"FVG",side:"bearish",low:y.high,high:x.low,status:Math.abs((y.high+x.low)/2-price)<=d?"ACTIVE":"CONTEXT"})}let r=cs.slice(-50),lo=r.reduce((a,b)=>b.low<a.low?b:a,r[0]),hi=r.reduce((a,b)=>b.high>a.high?b:a,r[0]);if(lo)out.push({type:"OB",side:"bullish",low:Math.min(lo.open,lo.close),high:Math.max(lo.open,lo.close),status:Math.abs((lo.open+lo.close)/2-price)<=d?"ACTIVE":"CONTEXT"});if(hi)out.push({type:"OB",side:"bearish",low:Math.min(hi.open,hi.close),high:Math.max(hi.open,hi.close),status:Math.abs((hi.open+hi.close)/2-price)<=d?"ACTIVE":"CONTEXT"});return out.sort((a,b)=>a.status===b.status?0:a.status==="ACTIVE"?-1:1)}
 function analyze(cs,tf,ses,price){if(cs.length<12)return{bias:"NEUTRAL",confidence:25,summary:"Candle belum cukup.",concepts:[],setup:{status:"WAIT",entry:"-",tp1:0,tp2:0,stop:0}};let h=ph(cs),l=pl(cs),bsl=h.map(x=>x.level).filter(x=>x>price).sort((a,b)=>a-b)[0]||Math.max(...cs.map(c=>c.high)),ssl=l.map(x=>x.level).filter(x=>x<price).sort((a,b)=>b-a)[0]||Math.min(...cs.map(c=>c.low)),hi=Math.max(...cs.slice(-80).map(c=>c.high)),lo=Math.min(...cs.slice(-80).map(c=>c.low)),eq=(hi+lo)/2,pd=price>eq?"PREMIUM":price<eq?"DISCOUNT":"EQUILIBRIUM",last=cs.at(-1),lh=h.findLast(x=>x.i<cs.length-2),ll=l.findLast(x=>x.i<cs.length-2),structure="None";if(lh&&last.close>lh.level)structure=`Bullish BOS @ ${p2(lh.level)}`;if(ll&&last.close<ll.level)structure=`Bearish BOS @ ${p2(ll.level)}`;let bias=structure.includes("Bullish")?"BULLISH":structure.includes("Bearish")?"BEARISH":last.close>=cs[Math.max(0,cs.length-4)].close?"BULLISH":"BEARISH",z=zones(cs,price),active=z.filter(x=>x.status==="ACTIVE"),valid=active.length&&((bias==="BULLISH"&&pd==="DISCOUNT")||(bias==="BEARISH"&&pd==="PREMIUM")),a=atr(cs),setup=valid?(bias==="BULLISH"?{status:"ACTIVE",entry:`${p2(active[0].low)} - ${p2(active[0].high)}`,tp1:Math.max(bsl,price+a),tp2:Math.max(hi,price+a*2),stop:Math.min(ssl,lo)-a}:{status:"ACTIVE",entry:`${p2(active[0].low)} - ${p2(active[0].high)}`,tp1:Math.min(ssl,price-a),tp2:Math.min(lo,price-a*2),stop:Math.max(bsl,hi)+a}):{status:"WAIT",entry:"Tunggu POI aktif + premium/discount sesuai bias",tp1:0,tp2:0,stop:0};let concept=(title,type)=>{let x=z.find(q=>q.type===type);return{title,status:z.some(q=>q.type===type&&q.status==="ACTIVE")?"ACTIVE":x?"CONTEXT":"NONE",tf,value:x?`${x.side} ${x.status} ${p2(x.low)} - ${p2(x.high)}`:`No ${type}`}};return{bias,confidence:Math.min(90,45+(active.length?20:0)+(valid?20:0)),summary:`Bias ${bias}. Harga di ${pd}. BSL ${p2(bsl)}, SSL ${p2(ssl)}. POI jauh tetap tampil sebagai CONTEXT.`,concepts:[{title:"Market Structure",status:structure==="None"?"NONE":"ACTIVE",tf,value:structure},concept("Order Block","OB"),concept("Fair Value Gap","FVG"),{title:"Liquidity",status:"ACTIVE",tf,value:`BSL ${p2(bsl)} • SSL ${p2(ssl)}`},{title:"Premium / Discount",status:"ACTIVE",tf,value:`${pd} • EQ ${p2(eq)}`},{title:"Kill Zone",status:ses==="Off-Session"?"WAIT":"ACTIVE",tf:"AUTO",value:ses},{title:"Trade Setup",status:setup.status,tf,value:setup.entry}],setup}}
-export default function App(){let[tab,setTab]=useState("Dashboard"),[key,setKey]=useState(localStorage.getItem("twelve_api_key")||""),[connected,setConnected]=useState(false),[price,setPrice]=useState(Number(localStorage.getItem("last_price"))||0),[now,setNow]=useState(Date.now()),[tf,setTf]=useState("M5"),[logs,setLogs]=useState(JSON.parse(localStorage.getItem("logs")||"[]")),[analyses,setAnalyses]=useState(JSON.parse(localStorage.getItem("analyses")||"[]")),[trades,setTrades]=useState(JSON.parse(localStorage.getItem("trades")||"[]")),[candles,setCandles]=useState(JSON.parse(localStorage.getItem("candles")||"{}")),[current,setCurrent]=useState({});let ws=useRef(null),watch=useRef(null),ses=useMemo(()=>curSession(now),[now]),rows=useMemo(()=>sessions(now),[now]);useEffect(()=>{let id=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(id)},[]);useEffect(()=>localStorage.setItem("logs",JSON.stringify(logs.slice(0,120))),[logs]);useEffect(()=>localStorage.setItem("analyses",JSON.stringify(analyses.slice(0,50))),[analyses]);useEffect(()=>localStorage.setItem("trades",JSON.stringify(trades.slice(0,50))),[trades]);useEffect(()=>localStorage.setItem("candles",JSON.stringify(candles)),[candles]);function log(x){setLogs(p=>[`[${time(Date.now(),"Asia/Jakarta",false)}] ${x}`,...p].slice(0,160))}function connect(){if(!key.trim())return log("Masukkan Twelve Data API Key dulu.");localStorage.setItem("twelve_api_key",key.trim());ws.current?.close();let w=new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(key.trim())}`);ws.current=w;w.onopen=()=>{setConnected(true);log("Connecting WebSocket XAU/USD...");w.send(JSON.stringify({action:"subscribe",params:{symbols:"XAU/USD"}}))};w.onmessage=e=>{let d=JSON.parse(e.data),p=Number(d.price),ts=Number(d.timestamp)||Math.floor(Date.now()/1000);if(!p||p<1000||p>10000)return;setPrice(p);localStorage.setItem("last_price",String(p));processTick({price:p,time:ts});checkSetup(p)};w.onclose=()=>{setConnected(false);log("WebSocket disconnected.")};w.onerror=()=>log("WebSocket error.")}function processTick(tick){setCurrent(prev=>{let b=build(prev,tick);if(b.closed.length)setCandles(old=>{let n={...old};b.closed.forEach(c=>{n[c.timeframe]=[...(n[c.timeframe]||[]),c].slice(-500);if(c.timeframe!=="M1")log(`${c.timeframe} closed. C:${p2(c.close)} Ticks:${c.tickCount}`)});return n});return b.cur})}function runAnalysis(){let list=candles[tf]||[],active=current[tf]?[...list,current[tf]]:list,res=analyze(active,tf,ses.name,price),entry={id:Date.now(),date:new Date().toISOString(),timeframe:tf,session:ses.name,price,...res};setAnalyses(p=>[entry,...p].slice(0,50));log(`ICT Analysis saved. Bias ${res.bias} ${res.confidence}%`);if(res.setup.status==="ACTIVE"){watch.current=res.setup;log(`SETUP ACTIVE [${tf}] ${res.bias} | TP1 ${p2(res.setup.tp1)} | TP2 ${p2(res.setup.tp2)} | STOP ${p2(res.setup.stop)}`)}else log("SETUP WAIT: tunggu kondisi valid.")}function checkSetup(p){let s=watch.current,a=analyses[0];if(!s||!a)return;let buy=a.bias==="BULLISH";if(!s.tp1Done&&((buy&&p>=s.tp1)||(!buy&&p<=s.tp1))){s.tp1Done=true;log(`TP1 tercapai @ ${p2(p)}`)}let win=(buy&&p>=s.tp2)||(!buy&&p<=s.tp2),loss=(buy&&p<=s.stop)||(!buy&&p>=s.stop);if(win||loss){log(`${win?"TP2":"STOP"} tercapai @ ${p2(p)}`);setTrades(t=>[{id:Date.now(),type:buy?"BUY":"SELL",result:win?"WIN":"LOSS",entry:price,tp:s.tp2,stop:s.stop,timestamp:Date.now()},...t]);watch.current=null}}let latest=analyses[0];return <div className="app"><header className="topbar"><div className="brand-mark">XAU</div><div><div className="brand-title">XAUUSD ICT</div><div className="brand-sub">PWA • Smart Money Concepts</div></div><div className={connected?"live-dot on":"live-dot"}>{connected?"Live":"Offline"}</div></header><main className="content">{tab==="Dashboard"&&<><section className="hero card"><div><div className="kicker">INNER CIRCLE TRADER</div><h1>XAU<span>/</span>USD</h1><div className="label">WIB Time</div><div className="clock">{time(now)}</div><div className="muted">{dtext(now)}</div></div><div className="price-box"><div className="label">Gold Price</div><div className="price">{money(price)}</div><div className={connected?"green":"muted"}>Real-time XAU/USD</div><div className={ses.active?"green small":"muted small"}>{ses.name}</div></div></section><div className="metrics"><Metric v={analyses.length} l="Analyses"/><Metric v={analyses.filter(a=>a.bias==="BULLISH").length} l="Bullish" c="green"/><Metric v={analyses.filter(a=>a.bias==="BEARISH").length} l="Bearish" c="red"/></div><button className="action" onClick={()=>setTab("Analyze")}><Zap size={18}/> Analisis ICT Sekarang</button><section className="card"><Title icon={<Clock3 size={16}/>} text="Trading Sessions Auto DST"/>{rows.map(r=><Row key={r.name} r={r}/>)}</section><section className="card"><Title icon={<Radio size={16}/>} text="ICT Concepts Covered"/><div className="concept-grid">{(latest?.concepts||defConcepts(ses)).map(c=><Concept key={c.title} x={c}/>)}</div></section></>}{tab==="Analyze"&&<section className="card"><div className="page-title">Analisis ICT</div><div className="muted">Session otomatis: {ses.name}</div><div className="tf-row">{Object.keys(TF).map(x=><button key={x} onClick={()=>setTf(x)} className={x===tf?"chip active":"chip"}>{x}</button>)}</div><button className="action" onClick={runAnalysis}><Cpu size={18}/> Analisis ICT Sekarang</button>{latest&&<Result x={latest}/>}</section>}{tab==="Terminal"&&<section className="terminal"><Title icon={<Terminal size={16}/>} text="Market Event Feed"/>{logs.map((l,i)=><div className="log" key={i}>› {l}</div>)}</section>}{tab==="History"&&<section className="card"><div className="page-title">History Trade</div>{trades.length?trades.map(t=><Trade key={t.id} t={t}/>):<div className="muted">Belum ada trade selesai.</div>}</section>}{tab==="Settings"&&<section className="card"><div className="page-title">Settings</div><div className="label">Twelve Data API Key</div><input value={key} onChange={e=>setKey(e.target.value)} placeholder="Masukkan API key"/><button className="action" onClick={connect}><KeyRound size={18}/> Save & Connect</button><p className="muted">API key disimpan di localStorage device.</p></section>}</main><nav className="nav"><Nav a={tab==="Dashboard"} f={()=>setTab("Dashboard")} i={<BarChart3 size={18}/>} l="Dashboard"/><Nav a={tab==="Analyze"} f={()=>setTab("Analyze")} i={<Activity size={18}/>} l="Analyze"/><Nav a={tab==="History"} f={()=>setTab("History")} i={<History size={18}/>} l="History"/><Nav a={tab==="Terminal"} f={()=>setTab("Terminal")} i={<Terminal size={18}/>} l="Terminal"/><Nav a={tab==="Settings"} f={()=>setTab("Settings")} i={<Settings size={18}/>} l="Settings"/></nav></div>}
+export default function App() {
+  let [tab, setTab] = useState("Dashboard");
+  let [key, setKey] = useState(localStorage.getItem("twelve_api_key") || "");
+  let [connStatus, setConnStatus] = useState("Offline");
+  let [price, setPrice] = useState(Number(localStorage.getItem("last_price")) || 0);
+  let [now, setNow] = useState(Date.now());
+  let [tf, setTf] = useState("M5");
+  let [logs, setLogs] = useState(JSON.parse(localStorage.getItem("logs") || "[]"));
+  let [analyses, setAnalyses] = useState(JSON.parse(localStorage.getItem("analyses") || "[]"));
+  let [trades, setTrades] = useState(JSON.parse(localStorage.getItem("trades") || "[]"));
+  let [candles, setCandles] = useState(JSON.parse(localStorage.getItem("candles") || "{}"));
+  let [current, setCurrent] = useState({});
+
+  let ws = useRef(null);
+  let watch = useRef(null);
+  let reconnectTimer = useRef(null);
+  let retryCount = useRef(0);
+  
+  let ses = useMemo(() => curSession(now), [now]);
+  let rows = useMemo(() => sessions(now), [now]);
+
+  useEffect(() => {
+    let id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => localStorage.setItem("logs", JSON.stringify(logs.slice(0, 120))), [logs]);
+  useEffect(() => localStorage.setItem("analyses", JSON.stringify(analyses.slice(0, 50))), [analyses]);
+  useEffect(() => localStorage.setItem("trades", JSON.stringify(trades.slice(0, 50))), [trades]);
+  useEffect(() => localStorage.setItem("candles", JSON.stringify(candles)), [candles]);
+
+  function log(x) {
+    setLogs(p => [`[${time(Date.now(), "Asia/Jakarta", false)}] ${x}`, ...p].slice(0, 160));
+  }
+
+  function scheduleReconnect() {
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    let delays = [2000, 5000, 10000, 30000];
+    let delay = delays[Math.min(retryCount.current, delays.length - 1)];
+    setConnStatus("Reconnecting");
+    log(`WebSocket disconnected. Reconnecting in ${delay / 1000}s...`);
+    reconnectTimer.current = setTimeout(() => {
+      retryCount.current++;
+      connect();
+    }, delay);
+  }
+
+  function connect() {
+    if (!key.trim()) return log("Masukkan Twelve Data API Key dulu.");
+    localStorage.setItem("twelve_api_key", key.trim());
+    
+    if (ws.current) {
+      ws.current.onclose = null;
+      ws.current.close();
+    }
+    if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+
+    setConnStatus("Reconnecting");
+    let w = new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${encodeURIComponent(key.trim())}`);
+    ws.current = w;
+
+    w.onopen = () => {
+      setConnStatus("Connected");
+      retryCount.current = 0;
+      log("WebSocket XAU/USD Connected.");
+      w.send(JSON.stringify({ action: "subscribe", params: { symbols: "XAU/USD" } }));
+    };
+
+    w.onmessage = e => {
+      let d = JSON.parse(e.data);
+      if (d.event === "subscribe-status") return;
+      let p = Number(d.price), ts = Number(d.timestamp) || Math.floor(Date.now() / 1000);
+      if (!p || p < 1000 || p > 10000) return;
+      setPrice(p);
+      localStorage.setItem("last_price", String(p));
+      processTick({ price: p, time: ts });
+      checkSetup(p);
+    };
+
+    w.onclose = () => {
+      setConnStatus("Offline");
+      scheduleReconnect();
+    };
+    w.onerror = () => log("WebSocket error.");
+  }
+
+  useEffect(() => {
+    const handleOnline = () => {
+      log("Internet terhubung kembali. Mencoba reconnect...");
+      retryCount.current = 0;
+      if (key.trim()) connect();
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && ws.current?.readyState !== WebSocket.OPEN) {
+        log("Aplikasi dibuka kembali. Mengecek koneksi...");
+        retryCount.current = 0;
+        if (key.trim()) connect();
+      }
+    };
+    
+    window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    if (key.trim() && (!ws.current || ws.current.readyState !== WebSocket.OPEN)) {
+      connect();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (ws.current) {
+        ws.current.onclose = null;
+        ws.current.close();
+      }
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+    };
+  }, [key]);
+
+  function processTick(tick) {
+    setCurrent(prev => {
+      let b = build(prev, tick);
+      if (b.closed.length) {
+        setCandles(old => {
+          let n = { ...old };
+          b.closed.forEach(c => {
+            n[c.timeframe] = [...(n[c.timeframe] || []), c].slice(-500);
+            if (c.timeframe !== "M1") log(`${c.timeframe} closed. C:${p2(c.close)} Ticks:${c.tickCount}`);
+          });
+          return n;
+        });
+      }
+      return b.cur;
+    });
+  }
+
+  async function runAnalysis() {
+    if (!key.trim()) return log("Error: API Key kosong. Masukkan di tab Settings.");
+    
+    if (ws.current?.readyState !== WebSocket.OPEN) {
+      setConnStatus("Fallback API");
+    }
+
+    log(`Memulai fetch data ${tf} dari Twelve Data...`);
+    let interval = { "M1": "1min", "M5": "5min", "M15": "15min", "M30": "30min", "H1": "1h", "H4": "4h", "D1": "1day", "W1": "1week" }[tf] || "5min";
+    let url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=${interval}&outputsize=200&apikey=${encodeURIComponent(key.trim())}`;
+    
+    console.log("URL request Twelve Data:", url);
+    console.log("symbol:", "XAU/USD");
+    console.log("interval:", interval);
+    console.log("outputsize:", 200);
+
+    try {
+      let res;
+      try {
+        res = await fetch(url);
+      } catch (e) {
+        throw new Error("Koneksi gagal. Cek internet Anda.");
+      }
+      
+      let data = await res.json();
+      console.log("Response mentah dari Twelve Data:", data);
+      
+      if (!data || data.status === "error") {
+        throw new Error(data?.message || "Gagal mengambil data dari Twelve Data");
+      }
+      
+      const fetchedCandles = Array.isArray(data.values) ? data.values : [];
+      console.log("Jumlah candle yang berhasil diparse:", fetchedCandles.length);
+      
+      if (fetchedCandles.length === 0) {
+        throw new Error("Candle kosong.");
+      }
+      if (fetchedCandles.length < 50) {
+        throw new Error(`Candle tidak cukup: ${fetchedCandles.length} candle`);
+      }
+      
+      let mapped = fetchedCandles.reverse().map(c => ({
+        time: new Date(c.datetime).getTime(),
+        timeframe: tf,
+        open: Number(c.open),
+        high: Number(c.high),
+        low: Number(c.low),
+        close: Number(c.close),
+        tickCount: 1,
+        isClosed: true
+      }));
+      
+      setCandles(old => ({ ...old, [tf]: mapped }));
+      
+      let list = mapped;
+      let active = current[tf] ? [...list, current[tf]] : list;
+      let resObj = analyze(active, tf, ses.name, price || active[active.length - 1].close);
+      
+      let entry = {
+        id: Date.now(),
+        date: new Date().toISOString(),
+        timeframe: tf,
+        session: ses.name,
+        price: price || active[active.length - 1].close,
+        ...resObj
+      };
+      
+      setAnalyses(p => [entry, ...p].slice(0, 50));
+      log(`ICT Analysis saved. Bias ${resObj.bias} ${resObj.confidence}%`);
+      
+      if (resObj.setup.status === "ACTIVE") {
+        watch.current = resObj.setup;
+        log(`SETUP ACTIVE [${tf}] ${resObj.bias} | TP1 ${p2(resObj.setup.tp1)} | TP2 ${p2(resObj.setup.tp2)} | STOP ${p2(resObj.setup.stop)}`);
+      } else {
+        log("SETUP WAIT: tunggu kondisi valid.");
+      }
+    } catch (err) {
+      console.error(err);
+      log("Error Analisa: " + err.message);
+    }
+  }
+
+  function checkSetup(p) {
+    let s = watch.current, a = analyses[0];
+    if (!s || !a) return;
+    let buy = a.bias === "BULLISH";
+    if (!s.tp1Done && ((buy && p >= s.tp1) || (!buy && p <= s.tp1))) {
+      s.tp1Done = true;
+      log(`TP1 tercapai @ ${p2(p)}`);
+    }
+    let win = (buy && p >= s.tp2) || (!buy && p <= s.tp2), loss = (buy && p <= s.stop) || (!buy && p >= s.stop);
+    if (win || loss) {
+      log(`${win ? "TP2" : "STOP"} tercapai @ ${p2(p)}`);
+      setTrades(t => [{
+        id: Date.now(),
+        type: buy ? "BUY" : "SELL",
+        result: win ? "WIN" : "LOSS",
+        entry: price,
+        tp: s.tp2,
+        stop: s.stop,
+        timestamp: Date.now()
+      }, ...t]);
+      watch.current = null;
+    }
+  }
+
+  let latest = analyses[0];
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div className="brand-mark">XAU</div>
+        <div>
+          <div className="brand-title">XAUUSD ICT</div>
+          <div className="brand-sub">PWA • Smart Money Concepts</div>
+        </div>
+        <div className={connStatus === "Connected" ? "live-dot on" : connStatus === "Fallback API" ? "live-dot fallback" : connStatus === "Reconnecting" ? "live-dot yellow" : "live-dot"}>
+          {connStatus}
+        </div>
+      </header>
+      <main className="content">
+        {tab === "Dashboard" && (
+          <>
+            <section className="hero card">
+              <div>
+                <div className="kicker">INNER CIRCLE TRADER</div>
+                <h1>XAU<span>/</span>USD</h1>
+                <div className="label">WIB Time</div>
+                <div className="clock">{time(now)}</div>
+                <div className="muted">{dtext(now)}</div>
+              </div>
+              <div className="price-box">
+                <div className="label">Gold Price</div>
+                <div className="price">{money(price)}</div>
+                <div className={connStatus === "Connected" ? "green" : "muted"}>Real-time XAU/USD</div>
+                <div className={ses.active ? "green small" : "muted small"}>{ses.name}</div>
+              </div>
+            </section>
+            <div className="metrics">
+              <Metric v={analyses.length} l="Analyses" />
+              <Metric v={analyses.filter(a => a.bias === "BULLISH").length} l="Bullish" c="green" />
+              <Metric v={analyses.filter(a => a.bias === "BEARISH").length} l="Bearish" c="red" />
+            </div>
+            <button className="action" onClick={() => setTab("Analyze")}>
+              <Zap size={18} /> Analisis ICT Sekarang
+            </button>
+            <section className="card">
+              <Title icon={<Clock3 size={16} />} text="Trading Sessions Auto DST" />
+              {rows.map(r => <Row key={r.name} r={r} />)}
+            </section>
+            <section className="card">
+              <Title icon={<Radio size={16} />} text="ICT Concepts Covered" />
+              <div className="concept-grid">
+                {(latest?.concepts || defConcepts(ses)).map(c => <Concept key={c.title} x={c} />)}
+              </div>
+            </section>
+          </>
+        )}
+        {tab === "Analyze" && (
+          <section className="card">
+            <div className="page-title">Analisis ICT</div>
+            <div className="muted">Session otomatis: {ses.name}</div>
+            <div className="tf-row">
+              {Object.keys(TF).map(x => (
+                <button key={x} onClick={() => setTf(x)} className={x === tf ? "chip active" : "chip"}>
+                  {x}
+                </button>
+              ))}
+            </div>
+            <button className="action" onClick={runAnalysis}>
+              <Cpu size={18} /> Analisis ICT Sekarang
+            </button>
+            {latest && <Result x={latest} />}
+          </section>
+        )}
+        {tab === "Terminal" && (
+          <section className="terminal">
+            <Title icon={<Terminal size={16} />} text="Market Event Feed" />
+            {logs.map((l, i) => <div className="log" key={i}>› {l}</div>)}
+          </section>
+        )}
+        {tab === "History" && (
+          <section className="card">
+            <div className="page-title">History Trade</div>
+            {trades.length ? trades.map(t => <Trade key={t.id} t={t} />) : <div className="muted">Belum ada trade selesai.</div>}
+          </section>
+        )}
+        {tab === "Settings" && (
+          <section className="card">
+            <div className="page-title">Settings</div>
+            <div className="label">Twelve Data API Key</div>
+            <input value={key} onChange={e => setKey(e.target.value)} placeholder="Masukkan API key" />
+            <button className="action" onClick={connect}>
+              <KeyRound size={18} /> Save & Connect
+            </button>
+            <p className="muted">API key disimpan di localStorage device.</p>
+          </section>
+        )}
+      </main>
+      <nav className="nav">
+        <Nav a={tab === "Dashboard"} f={() => setTab("Dashboard")} i={<BarChart3 size={18} />} l="Dashboard" />
+        <Nav a={tab === "Analyze"} f={() => setTab("Analyze")} i={<Activity size={18} />} l="Analyze" />
+        <Nav a={tab === "History"} f={() => setTab("History")} i={<History size={18} />} l="History" />
+        <Nav a={tab === "Terminal"} f={() => setTab("Terminal")} i={<Terminal size={18} />} l="Terminal" />
+        <Nav a={tab === "Settings"} f={() => setTab("Settings")} i={<Settings size={18} />} l="Settings" />
+      </nav>
+    </div>
+  );
+}
+
 function defConcepts(s){return[{title:"Market Structure",status:"NONE",tf:"-",value:"Belum ada analisis"},{title:"Order Block",status:"NONE",tf:"-",value:"Belum ada OB"},{title:"Fair Value Gap",status:"NONE",tf:"-",value:"Belum ada FVG"},{title:"Liquidity",status:"NONE",tf:"-",value:"Belum ada sweep"},{title:"Premium / Discount",status:"NONE",tf:"-",value:"Belum ada range"},{title:"Kill Zone",status:s.active?"ACTIVE":"WAIT",tf:"AUTO",value:s.name},{title:"Trade Setup",status:"WAIT",tf:"-",value:"Klik analisis"}]}
 function Metric({v,l,c="yellow"}){return <div className="metric card"><div className={c}>{v}</div><span>{l}</span></div>}function Title({icon,text}){return <div className="section-title">{icon}<span>{text}</span></div>}function Row({r}){return <div className="session-row"><div><strong className={r.active?"green":""}>{r.name}</strong><span>WIB: {r.wibRange}</span></div><em>{r.utcRange}</em></div>}function Concept({x}){return <div className="concept"><div className={`status ${x.status.toLowerCase()}`}>{x.status}</div><strong>{x.title}</strong><span>{x.tf}</span><p>{x.value}</p></div>}function Result({x}){return <div className="result"><div className={`bias ${x.bias.toLowerCase()}`}>{x.bias} • {x.confidence}%</div><p>{x.summary}</p><div className="setup"><strong>Setup: {x.setup.status}</strong><span>Entry: {x.setup.entry}</span><span>TP1: {p2(x.setup.tp1)}</span><span>TP2: {p2(x.setup.tp2)}</span><span>STOP: {p2(x.setup.stop)}</span></div></div>}function Trade({t}){return <div className="trade"><strong className={t.result==="WIN"?"green":"red"}>{t.type} • {t.result}</strong><span>Entry {p2(t.entry)}</span><span>TP {p2(t.tp)} • STOP {p2(t.stop)}</span></div>}function Nav({a,f,i,l}){return <button className={a?"nav-btn active":"nav-btn"} onClick={f}>{i}<span>{l}</span></button>}
