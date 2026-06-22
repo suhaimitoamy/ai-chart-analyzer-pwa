@@ -324,17 +324,55 @@ function Result({x}){
             </div>
          </div>
       </div>
+
+      {x.setup.status === "ACTIVE" && (
+          <button onClick={() => saveToJournal(x.setup, x.summary)} style={{ marginTop: "15px", width: "100%", padding: "12px", background: "var(--primary-gold)", color: "#000", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}>
+             📝 Simpan ke Jurnal Trading
+          </button>
+      )}
     </div>
   );
 }
 function Trade({t}){return <div className="trade"><strong className={t.result==="WIN"?"green":"red"}>{t.type} • {t.result}</strong><span>Entry {p2(t.entry)}</span><span>TP {p2(t.tp)} • STOP {p2(t.stop)}</span></div>}
 function Nav({a,f,i,l}){return <button className={a?"nav-btn active":"nav-btn"} onClick={f}>{i}<span>{l}</span></button>}
 
+function saveToJournal(setup, summary) {
+  let journal = {
+      id: "ai_" + Date.now().toString(),
+      date: new Date().toISOString().slice(0, 10),
+      title: "Setup AI: " + (setup.tradeType || "SMC"),
+      market: "XAUUSD",
+      setup: `Entry: ${setup.entry}\nSL: ${setup.stop}\nTP1: ${setup.tp1}\nTP2: ${setup.tp2}`,
+      result: "Belum selesai",
+      evaluation: summary,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+  };
+  try {
+      let journals = JSON.parse(localStorage.getItem("tradingLibraryManager.journals.v1") || "[]");
+      journals.unshift(journal);
+      localStorage.setItem("tradingLibraryManager.journals.v1", JSON.stringify(journals));
+      alert("✅ Berhasil disimpan ke Jurnal Trading Amy FX!");
+  } catch(e) {
+      alert("Gagal menyimpan ke jurnal: " + e.message);
+  }
+}
+
 export default function App() {
+  useEffect(() => {
+    if (window.Android) {
+      if (bgScanner && window.Android.startBackgroundScanner) {
+        window.Android.startBackgroundScanner();
+      } else if (!bgScanner && window.Android.stopBackgroundScanner) {
+        window.Android.stopBackgroundScanner();
+      }
+    }
+  }, [bgScanner]);
   let [tab, setTab] = useState("Dashboard");
   let [isAnalyzing, setIsAnalyzing] = useState(false);
   let [mtfData, setMtfData] = useState({});
   let [voiceAlert, setVoiceAlert] = useState(localStorage.getItem("voice_alert") !== "false");
+  let [bgScanner, setBgScanner] = useState(localStorage.getItem("bg_scanner") === "true");
 
   let [key, setKey] = useState(localStorage.getItem("twelve_api_key") || "");
 
@@ -720,6 +758,11 @@ Harga: ${p2(p)}`;
               <span style={{display:"flex", alignItems:"center", gap:"6px"}}><KeyRound size={18} /> Save & Connect</span>
             </button>
                         <p className="muted">API key disimpan aman di localStorage HP Anda.</p>
+            <div style={{marginTop:"20px"}} className="label">Background Scanner (24/7)</div>
+            <button className={bgScanner ? "action" : "chip"} onClick={() => { setBgScanner(!bgScanner); localStorage.setItem("bg_scanner", !bgScanner); }}>
+              {bgScanner ? "🔋 Background Scanner ON" : "🪫 Background Scanner OFF"}
+            </button>
+            <p className="muted">Aktifkan agar AI tetap memindai XAU/USD dan mengirim notifikasi saat layar terkunci.</p>
             <div style={{marginTop:"20px"}} className="label">Voice Alerts (Text-to-Speech)</div>
             <button className={voiceAlert ? "action" : "chip"} onClick={() => { setVoiceAlert(!voiceAlert); localStorage.setItem("voice_alert", !voiceAlert); }}>
               {voiceAlert ? "🔊 Voice Alerts ON" : "🔇 Voice Alerts OFF"}
