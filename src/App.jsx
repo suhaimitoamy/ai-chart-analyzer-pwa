@@ -32,11 +32,20 @@ function LiveNarrativeMap({ narrative }) {
         <div style={{ paddingLeft: "12px", borderLeft: "2px solid #3e89fa" }}>
           <strong style={{ color: "#3e89fa" }}>📚 The Storyline:</strong><br/>{narrative.mssStory}
         </div>
+        <div style={{ paddingLeft: "12px", borderLeft: "2px solid #a855f7" }}>
+          <strong style={{ color: "#a855f7" }}>⏳ Time & Price:</strong><br/>{narrative.timeNarrative}
+        </div>
         <div style={{ paddingLeft: "12px", borderLeft: "2px solid var(--primary-gold)" }}>
           <strong style={{ color: "var(--primary-gold)" }}>⚖️ Dealing Range:</strong><br/>{narrative.pdNarrative}
         </div>
+        <div style={{ paddingLeft: "12px", borderLeft: "2px solid #2dd4bf" }}>
+          <strong style={{ color: "#2dd4bf" }}>🕳️ Imbalance (FVG):</strong><br/>{narrative.fvgNarrative}
+        </div>
         <div style={{ paddingLeft: "12px", borderLeft: "2px solid #ff3131" }}>
-          <strong style={{ color: "#ff3131" }}>🎯 Liquidity Target:</strong><br/>{narrative.liqNarrative}
+          <strong style={{ color: "#ff3131" }}>🎯 Liquidity Targets:</strong><br/>{narrative.liqNarrative}
+        </div>
+        <div style={{ paddingLeft: "12px", borderLeft: "2px solid #f97316", background: "rgba(249,115,22,0.05)", padding: "8px 12px", borderRadius: "0 8px 8px 0" }}>
+          <strong style={{ color: "#f97316" }}>🧲 Draw on Liquidity (DOL):</strong><br/>{narrative.dolNarrative}
         </div>
       </div>
       <style>{`@keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }`}</style>
@@ -428,7 +437,7 @@ export default function App() {
     let list = candles[tf] || [];
     let active = current[tf] ? [...list, current[tf]] : list;
     if (active.length > 20) {
-      let newNar = generateLiveNarrative(active, price, tf);
+      let newNar = generateLiveNarrative(active, price, tf, curSession(Date.now()));
       setLiveNarrative(prev => JSON.stringify(prev) === JSON.stringify(newNar) ? prev : newNar);
     }
   }, [candles, current, price, tf]);
