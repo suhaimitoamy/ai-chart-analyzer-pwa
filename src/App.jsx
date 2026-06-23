@@ -418,7 +418,9 @@ export default function App() {
   useEffect(() => {
     if (window.Android) {
       if (bgScanner && window.Android.startBackgroundScanner) {
-        window.Android.startBackgroundScanner();
+        let bsl = liveNarrative ? liveNarrative.bslTarget : 0;
+        let ssl = liveNarrative ? liveNarrative.sslTarget : 0;
+        window.Android.startBackgroundScanner(key, String(bsl), String(ssl));
       } else if (!bgScanner && window.Android.stopBackgroundScanner) {
         window.Android.stopBackgroundScanner();
       }
@@ -866,6 +868,19 @@ Harga: ${p2(p)}`;
             </button>
                         <p className="muted">API key disimpan aman di localStorage HP Anda.</p>
 
+            <div style={{marginTop:"20px"}} className="label">Background Scanner (Native)</div>
+            <button className={bgScanner ? "action" : "chip"} onClick={() => { 
+                if (!bgScanner && !key) {
+                    alert("Harap isi API Key terlebih dahulu sebelum mengaktifkan Background Scanner.");
+                    return;
+                }
+                setBgScanner(!bgScanner); 
+                localStorage.setItem("bg_scanner", !bgScanner); 
+            }}>
+              {bgScanner ? "📡 Background Scanner ON" : "📴 Background Scanner OFF"}
+            </button>
+            <p className="muted">Saat ON, pemindai akan berjalan di layar belakang dan mengirim notifikasi jika Support/Resistance jebol. Baterai mungkin lebih boros.</p>
+            
             <div style={{marginTop:"20px"}} className="label">Voice Alerts (Text-to-Speech)</div>
             <button className={voiceAlert ? "action" : "chip"} onClick={() => { setVoiceAlert(!voiceAlert); localStorage.setItem("voice_alert", !voiceAlert); }}>
               {voiceAlert ? "🔊 Voice Alerts ON" : "🔇 Voice Alerts OFF"}
