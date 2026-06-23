@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, BarChart3, Clock3, Cpu, History, KeyRound, Radio, Settings, Terminal, Zap, Download } from "lucide-react";
 import { scanEvents } from "./MarketScanner.js";
 import { generateLiveNarrative } from "./NarrativeMapping.js";
+import { loadData, saveData } from "./db.js";
 
 const TF = { M1: 60, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400, W1: 604800 };
 const p2 = v => v ? Number(v).toFixed(2) : "-"; 
@@ -430,12 +431,24 @@ export default function App() {
   let [price, setPrice] = useState(Number(localStorage.getItem("last_price")) || 0);
   let [now, setNow] = useState(Date.now());
   let [tf, setTf] = useState("M5");
-  let [logs, setLogs] = useState(JSON.parse(localStorage.getItem("logs") || "[]"));
-  let [analyses, setAnalyses] = useState(JSON.parse(localStorage.getItem("analyses") || "[]"));
-  let [trades, setTrades] = useState(JSON.parse(localStorage.getItem("trades") || "[]"));
-  let [candles, setCandles] = useState(JSON.parse(localStorage.getItem("candles") || "{}"));
+  let [isLoaded, setIsLoaded] = useState(false);
+  let [logs, setLogs] = useState([]);
+  let [analyses, setAnalyses] = useState([]);
+  let [trades, setTrades] = useState([]);
+  let [candles, setCandles] = useState({});
   let [current, setCurrent] = useState({});
   let [liveNarrative, setLiveNarrative] = useState(null);
+
+  useEffect(() => {
+    async function initDb() {
+      setLogs(await loadData("logs", []));
+      setAnalyses(await loadData("analyses", []));
+      setTrades(await loadData("trades", []));
+      setCandles(await loadData("candles", {}));
+      setIsLoaded(true);
+    }
+    initDb();
+  }, []);
 
   useEffect(() => {
     let list = candles[tf] || [];
@@ -460,10 +473,10 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => localStorage.setItem("logs", JSON.stringify(logs.slice(0, 200))), [logs]);
-  useEffect(() => localStorage.setItem("analyses", JSON.stringify(analyses.slice(0, 50))), [analyses]);
-  useEffect(() => localStorage.setItem("trades", JSON.stringify(trades.slice(0, 50))), [trades]);
-  useEffect(() => localStorage.setItem("candles", JSON.stringify(candles)), [candles]);
+  useEffect(() => { if (isLoaded) saveData("logs", logs.slice(0, 200)); }, [logs, isLoaded]);
+  useEffect(() => { if (isLoaded) saveData("analyses", analyses.slice(0, 50)); }, [analyses, isLoaded]);
+  useEffect(() => { if (isLoaded) saveData("trades", trades.slice(0, 50)); }, [trades, isLoaded]);
+  useEffect(() => { if (isLoaded) saveData("candles", candles); }, [candles, isLoaded]);
 
   function log(x) {
     setLogs(p => [`[${time(Date.now(), "Asia/Jakarta", false)}] ${x}`, ...p].slice(0, 200));
