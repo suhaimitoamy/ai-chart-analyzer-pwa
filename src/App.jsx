@@ -467,6 +467,23 @@ export default function App() {
   
   let ses = useMemo(() => curSession(now), [now]);
   let rows = useMemo(() => sessions(now), [now]);
+  let lastNotifiedSetup = useRef("");
+
+  useEffect(() => {
+    if (liveNarrative && liveNarrative.saranNarrative && !liveNarrative.saranNarrative.includes("Tidak ada setup")) {
+      let setupMsg = liveNarrative.saranNarrative;
+      if (lastNotifiedSetup.current !== setupMsg) {
+        lastNotifiedSetup.current = setupMsg;
+        if (window.Android && window.Android.showNotification) {
+          window.Android.showNotification("🚨 Setup Terdeteksi!", setupMsg);
+        } else if (Notification && Notification.permission === "granted") {
+          new Notification("🚨 Setup Terdeteksi!", { body: setupMsg });
+        }
+      }
+    } else {
+      lastNotifiedSetup.current = "";
+    }
+  }, [liveNarrative]);
 
   useEffect(() => {
     let id = setInterval(() => setNow(Date.now()), 1000);
@@ -845,6 +862,24 @@ Harga: ${p2(p)}`;
               {voiceAlert ? "🔊 Voice Alerts ON" : "🔇 Voice Alerts OFF"}
             </button>
             <p className="muted">Aktifkan untuk mendengarkan robot suara membacakan sinyal saat aplikasi berjalan.</p>
+            <div style={{marginTop:"20px"}} className="label">Uji Coba Notifikasi</div>
+            <button className="action" onClick={() => {
+              if (window.Android && window.Android.showNotification) {
+                window.Android.showNotification("✅ Tes Berhasil", "Notifikasi Heads-Up berfungsi dengan baik di Android!");
+              } else if (Notification && Notification.permission === "granted") {
+                new Notification("✅ Tes Berhasil", { body: "Notifikasi browser berfungsi!" });
+              } else if (Notification) {
+                Notification.requestPermission().then(p => {
+                  if (p === "granted") new Notification("✅ Tes Berhasil", { body: "Notifikasi browser diaktifkan!" });
+                  else alert("Izin notifikasi ditolak oleh browser.");
+                });
+              } else {
+                alert("Browser ini tidak mendukung fitur notifikasi.");
+              }
+            }}>
+              🔔 Kirim Notifikasi Tes
+            </button>
+            <p className="muted">Klik untuk mencoba notifikasi pop-up (Heads-Up).</p>
           </section>
         )}
       </main>
