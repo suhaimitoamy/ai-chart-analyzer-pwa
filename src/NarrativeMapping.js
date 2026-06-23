@@ -59,11 +59,31 @@ export function generateLiveNarrative(candles, currentPrice, tf) {
     }
 
     // Liquidity Target (BSL/SSL)
-    // Nearest unmitigated high above current price
-    let bslTarget = highs.filter(h => h > currentPrice).sort((a,b)=>a-b)[0] || recentHigh;
-    let sslTarget = lows.filter(l => l < currentPrice).sort((a,b)=>b-a)[0] || recentLow;
+    // Cari swing terdekat yang belum tertembus
+    let bslTarget = highs.filter(h => h > currentPrice).sort((a,b)=>a-b)[0];
+    let sslTarget = lows.filter(l => l < currentPrice).sort((a,b)=>b-a)[0];
 
-    let liqNarrative = `Target Buy-Side Liquidity (BSL) terdekat: ${bslTarget.toFixed(2)}. Target Sell-Side Liquidity (SSL) terdekat: ${sslTarget.toFixed(2)}. Waspada area ini sering jadi tempat terjadinya 'Sweep' sebelum harga berbalik arah (Reversal).`;
+    // Jika tidak ada swing terkonfirmasi (misal harga baru saja membuat rekor tertinggi/terendah baru),
+    // kita ambil titik ekstrem (ujung jarum/wick) dari 20 candle terakhir sebagai target terdekat.
+    if (!bslTarget) {
+        let recentMax = Math.max(...candles.slice(-20).map(c=>c.high));
+        if (recentMax > currentPrice) bslTarget = recentMax;
+    }
+    if (!sslTarget) {
+        let recentMin = Math.min(...candles.slice(-20).map(c=>c.low));
+        if (recentMin < currentPrice) sslTarget = recentMin;
+    }
+
+    let liqNarrative = "";
+    if (bslTarget && sslTarget) {
+        liqNarrative = `Target Buy-Side Liquidity (BSL) terdekat: ${bslTarget.toFixed(2)}. Target Sell-Side Liquidity (SSL) terdekat: ${sslTarget.toFixed(2)}. Waspada area ini sering jadi tempat terjadinya 'Sweep' sebelum harga berbalik arah.`;
+    } else if (bslTarget) {
+        liqNarrative = `Target Buy-Side Liquidity (BSL) terdekat: ${bslTarget.toFixed(2)}. Harga sedang membuat lembah baru (terendah), sehingga belum ada jejak SSL historis di bawah harga saat ini.`;
+    } else if (sslTarget) {
+        liqNarrative = `Target Sell-Side Liquidity (SSL) terdekat: ${sslTarget.toFixed(2)}. Harga sedang membuat puncak baru (tertinggi), sehingga belum ada jejak BSL historis di atas harga saat ini.`;
+    } else {
+        liqNarrative = `Harga sedang berada di area pergerakan ekstrem tanpa jejak likuiditas terdekat yang jelas.`;
+    }
 
     return {
         tf: tf,
