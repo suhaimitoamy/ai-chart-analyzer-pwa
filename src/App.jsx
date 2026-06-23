@@ -479,6 +479,7 @@ export default function App() {
         if (nowTime - lastTime > 300000) {
           notifiedEventsCache.current.set(evt, nowTime);
           updated = true;
+          log(evt); // Automatically log the event to History
           
           let title = "🚨 Momentum Penting!";
           if (evt.includes("FVG")) title = "🕳️ FVG Tersentuh!";
@@ -809,7 +810,7 @@ Harga: ${p2(p)}`;
             <section className="card">
               <Title icon={<Radio size={16} />} text="ICT Concepts Covered" />
               <div className="concept-grid">
-                {(latest?.concepts || defConcepts(ses)).map(c => {
+                {(liveNarrative?.concepts || defConcepts(ses)).map(c => {
                   let xc = { ...c };
                   if (xc.title === "Kill Zone") {
                     xc.status = ses.active ? "ACTIVE" : "WAIT";
@@ -838,10 +839,6 @@ Harga: ${p2(p)}`;
                   </button>
                 ))}
               </div>
-              <button className="action" onClick={isAnalyzing ? null : runAnalysis} disabled={isAnalyzing} style={{ height: "55px", fontSize: "16px", letterSpacing: "1px", opacity: isAnalyzing ? 0.7 : 1, cursor: isAnalyzing ? "wait" : "pointer" }}>
-                {isAnalyzing ? "⚙️ Memindai Market..." : <><Cpu size={20} /> Jalankan Analisis Algoritma ({tf})</>}
-              </button>
-              {latest && <Result x={latest} />}
               <LiveNarrativeMap narrative={liveNarrative} />
             </section>
           </div>
@@ -854,11 +851,19 @@ Harga: ${p2(p)}`;
         )}
         {tab === "History" && (
           <section className="card">
-            <div className="page-title">History Trade</div>
+            <div className="page-title">Event Logs (Auto Jurnal)</div>
+            <p className="muted">Rekaman kejadian krusial otomatis (MSS, FVG, OB).</p>
             <button className="action" onClick={downloadPdf} style={{margin:"10px 0", background:"#3b82f6", color:"#fff"}}>
-              <Download size={18} /> Download PDF Report
+              <Download size={18} /> Download Log PDF
             </button>
-            {trades.length ? trades.map(t => <Trade key={t.id} t={t} />) : <div className="muted">Belum ada trade selesai.</div>}
+            <div style={{marginTop:"20px", display:"flex", flexDirection:"column", gap:"10px"}}>
+               {logs.filter(l => l.includes("Momentum") || l.includes("Target") || l.includes("Harga") || l.includes("Terdeteksi") || l.includes("Dijebol")).map((l, i) => (
+                  <div key={i} style={{background:"#1e1e1e", padding:"15px", borderRadius:"10px", borderLeft:"4px solid var(--primary-gold)"}}>
+                     {l}
+                  </div>
+               ))}
+               {logs.length === 0 && <div className="muted">Belum ada kejadian tercatat.</div>}
+            </div>
           </section>
         )}
         {tab === "Settings" && (

@@ -155,6 +155,51 @@ export function generateLiveNarrative(candles, currentPrice, tf, session) {
         }
     }
 
+    let liveConcepts = [
+        {
+            title: "Market Structure", 
+            status: mssStatus.includes("Bullish") ? "BULLISH" : mssStatus.includes("Bearish") ? "BEARISH" : "NONE", 
+            tf: tf, 
+            value: mssStatus
+        },
+        {
+            title: "Order Block", 
+            status: (currentPrice <= eq && currentPrice <= recentLow + (range * 0.2)) ? "ACTIVE" : (currentPrice >= eq && currentPrice >= recentHigh - (range * 0.2)) ? "ACTIVE" : "NONE", 
+            tf: tf, 
+            value: (currentPrice <= eq && currentPrice <= recentLow + (range * 0.2)) ? "Harga di OB Discount" : (currentPrice >= eq && currentPrice >= recentHigh - (range * 0.2)) ? "Harga di OB Premium" : "Harga di luar OB"
+        },
+        {
+            title: "Fair Value Gap", 
+            status: foundFvg ? "ACTIVE" : "NONE", 
+            tf: tf, 
+            value: foundFvg ? (fvgNarrative.includes("Bullish") ? "Bullish FVG Terdeteksi" : "Bearish FVG Terdeteksi") : "Tidak ada FVG"
+        },
+        {
+            title: "Liquidity", 
+            status: "ACTIVE", 
+            tf: tf, 
+            value: bslTarget && sslTarget ? "BSL & SSL Valid" : bslTarget ? "Hanya BSL Valid" : sslTarget ? "Hanya SSL Valid" : "Mencari Liquidity..."
+        },
+        {
+            title: "HTF Premium/Discount", 
+            status: pdPos === "Premium" ? "BEARISH" : pdPos === "Discount" ? "BULLISH" : "NONE", 
+            tf: tf, 
+            value: pdPos
+        },
+        {
+            title: "Kill Zone", 
+            status: (session && session.active) ? "ACTIVE" : "WAIT", 
+            tf: "AUTO", 
+            value: session ? session.name : "Dead Zone"
+        },
+        {
+            title: "Trade Setup", 
+            status: saranNarrative.includes("High Probability") ? "HIGH" : "WAIT", 
+            tf: tf, 
+            value: saranNarrative.includes("High Probability") ? "Eksekusi Setup" : "Pantau Reaksi"
+        }
+    ];
+
     return {
         tf: tf,
         pdPos: pdPos,
@@ -167,6 +212,7 @@ export function generateLiveNarrative(candles, currentPrice, tf, session) {
         dolNarrative: dolNarrative,
         saranNarrative: saranNarrative,
         price: currentPrice,
-        criticalEvents: criticalEvents
+        criticalEvents: criticalEvents,
+        concepts: liveConcepts
     };
 }
