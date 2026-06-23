@@ -120,6 +120,24 @@ export function generateLiveNarrative(candles, currentPrice, tf, session) {
         dolNarrative = `Harga memang condong Bearish, namun sudah berada di zona Discount (Murah). Waspada potensi pantulan mengambil Liquidity atas (BSL) sebelum melanjutkan penurunan.`;
     }
 
+    // Saran Eksekusi (Pilar 7)
+    let saranNarrative = "Pantau reaksi harga di sekitar area Liquidity terdekat sebelum mengambil keputusan.";
+    let isDeadZone = !(session && session.active);
+    
+    if (isDeadZone) {
+        saranNarrative = "Wait & See. Hindari memaksakan entry di luar jam sibuk institusi. Simpan modalmu untuk sesi Kill Zone berikutnya.";
+    } else {
+        if (mssStatus.includes("Bullish") && pdPos === "Premium") {
+            saranNarrative = "Wait & See. Tren naik tapi harga sudah terlalu mahal (Premium). Tunggu harga turun ke area Discount atau menutup FVG terdekat sebelum mencari peluang Buy.";
+        } else if (mssStatus.includes("Bearish") && pdPos === "Discount") {
+            saranNarrative = "Wait & See. Tren turun tapi harga sudah terlalu murah (Discount). Tunggu harga memantul naik menutup FVG Bearish terdekat sebelum mencari peluang Sell.";
+        } else if (mssStatus.includes("Bullish") && pdPos === "Discount") {
+            saranNarrative = "High Probability! Harga murah dan tren naik saling mendukung. Segera cari konfirmasi pola Bullish (seperti pantulan Order Block atau MSS di TF kecil) untuk eksekusi Buy menuju BSL.";
+        } else if (mssStatus.includes("Bearish") && pdPos === "Premium") {
+            saranNarrative = "High Probability! Harga mahal dan tren turun saling mendukung. Segera cari konfirmasi pola Bearish (penolakan dari Order Block atau MSS di TF kecil) untuk eksekusi Sell menuju SSL.";
+        }
+    }
+
     return {
         tf: tf,
         pdPos: pdPos,
@@ -130,6 +148,7 @@ export function generateLiveNarrative(candles, currentPrice, tf, session) {
         timeNarrative: timeNarrative,
         fvgNarrative: fvgNarrative,
         dolNarrative: dolNarrative,
+        saranNarrative: saranNarrative,
         price: currentPrice
     };
 }

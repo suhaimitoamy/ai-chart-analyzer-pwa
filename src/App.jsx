@@ -47,6 +47,10 @@ function LiveNarrativeMap({ narrative }) {
         <div style={{ paddingLeft: "12px", borderLeft: "2px solid #f97316", background: "rgba(249,115,22,0.05)", padding: "8px 12px", borderRadius: "0 8px 8px 0" }}>
           <strong style={{ color: "#f97316" }}>🧲 Draw on Liquidity (DOL):</strong><br/>{narrative.dolNarrative}
         </div>
+        <div style={{ marginTop: "8px", padding: "12px", borderLeft: "4px solid #4ade80", background: "rgba(74,222,128,0.1)", borderRadius: "0 8px 8px 0" }}>
+          <strong style={{ color: "#4ade80", fontSize: "14px" }}>💡 Saran Eksekusi:</strong><br/>
+          <span style={{ color: "#e2e8f0", fontWeight: "bold" }}>{narrative.saranNarrative}</span>
+        </div>
       </div>
       <style>{`@keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }`}</style>
     </div>
