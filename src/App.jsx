@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, BarChart3, Clock3, Cpu, History, KeyRound, Radio, Settings, Terminal, Zap, Download } from "lucide-react";
 import { scanEvents } from "./MarketScanner.js";
+import { generateLiveNarrative } from "./NarrativeMapping.js";
 
 const TF = { M1: 60, M5: 300, M15: 900, M30: 1800, H1: 3600, H4: 14400, D1: 86400, W1: 604800 };
 const p2 = v => v ? Number(v).toFixed(2) : "-"; 
@@ -17,6 +18,31 @@ function curSession(now){ return sessions(now).find(x=>x.active) || {name:"Off-S
 function newCandle(tick, tf) { let s=TF[tf], t=Math.floor(tick.time/s)*s; return {time:t, timeframe:tf, open:tick.price, high:tick.price, low:tick.price, close:tick.price, tickCount:1, isClosed:false} }
 function build(prev, tick) { let cur={...prev}, closed=[]; Object.keys(TF).forEach(tf=>{ let t=Math.floor(tick.time/TF[tf])*TF[tf], c=cur[tf]; if(!c || c.time!==t){ if(c) closed.push({...c, isClosed:true}); cur[tf]=newCandle(tick,tf); } else cur[tf]={...c, high:Math.max(c.high,tick.price), low:Math.min(c.low,tick.price), close:tick.price, tickCount:c.tickCount+1}; }); return {cur, closed} }
 
+function LiveNarrativeMap({ narrative }) {
+  if (!narrative) return null;
+  return (
+    <div style={{ marginTop: "20px", background: "rgba(10,10,10,0.6)", border: "1px solid rgba(212,175,55,0.2)", borderRadius: "12px", padding: "16px", position: "relative" }}>
+      <div style={{ position: "absolute", top: "16px", right: "16px", display: "flex", alignItems: "center", gap: "6px" }}>
+        <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#ff3131", animation: "pulse 1.5s infinite" }}></div>
+        <span style={{ fontSize: "10px", color: "var(--primary-gold)", letterSpacing: "1px", fontWeight: "bold" }}>LIVE MAP</span>
+      </div>
+      <h3 style={{ margin: "0 0 12px 0", color: "#fff", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}><Activity size={18} color="var(--primary-gold)" /> Market Context ({narrative.tf})</h3>
+      
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "13px", lineHeight: "1.6", color: "rgba(255,255,255,0.85)" }}>
+        <div style={{ paddingLeft: "12px", borderLeft: "2px solid #3e89fa" }}>
+          <strong style={{ color: "#3e89fa" }}>📚 The Storyline:</strong><br/>{narrative.mssStory}
+        </div>
+        <div style={{ paddingLeft: "12px", borderLeft: "2px solid var(--primary-gold)" }}>
+          <strong style={{ color: "var(--primary-gold)" }}>⚖️ Dealing Range:</strong><br/>{narrative.pdNarrative}
+        </div>
+        <div style={{ paddingLeft: "12px", borderLeft: "2px solid #ff3131" }}>
+          <strong style={{ color: "#ff3131" }}>🎯 Liquidity Target:</strong><br/>{narrative.liqNarrative}
+        </div>
+      </div>
+      <style>{`@keyframes pulse { 0% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.2); } 100% { opacity: 1; transform: scale(1); } }`}</style>
+    </div>
+  );
+}
 
 function processSMC(candles) {
     if (candles.length < 20) return { trend: 0, lastBreak: null, obs: [], fvgs: [], highestHigh: 0, lowestLow: 0, swingHighs: [], swingLows: [] };
@@ -396,6 +422,15 @@ export default function App() {
   let [trades, setTrades] = useState(JSON.parse(localStorage.getItem("trades") || "[]"));
   let [candles, setCandles] = useState(JSON.parse(localStorage.getItem("candles") || "{}"));
   let [current, setCurrent] = useState({});
+  let [liveNarrative, setLiveNarrative] = useState(null);
+
+  useEffect(() => {
+    let list = candles[tf] || [];
+    let active = current[tf] ? [...list, current[tf]] : list;
+    if (active.length > 20) {
+      setLiveNarrative(generateLiveNarrative(active, price, tf));
+    }
+  }, [candles, current, price, tf]);
 
   let ws = useRef(null);
   let watch = useRef(null);
@@ -740,6 +775,7 @@ Harga: ${p2(p)}`;
                 {isAnalyzing ? "⚙️ Memindai Market..." : <><Cpu size={20} /> Jalankan Analisis Algoritma ({tf})</>}
               </button>
               {latest && <Result x={latest} />}
+              <LiveNarrativeMap narrative={liveNarrative} />
             </section>
           </div>
         )}
