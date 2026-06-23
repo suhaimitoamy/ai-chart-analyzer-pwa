@@ -59,14 +59,11 @@ export function generateLiveNarrative(candles, currentPrice, tf) {
     }
 
     // Liquidity Target (BSL/SSL)
-    // Cari Major Swing Liquidity: Ambil swing tertinggi/terendah dari array, bukan cuma yang terdekat.
-    let validHighs = highs.filter(h => h > currentPrice);
-    let validLows = lows.filter(l => l < currentPrice);
-    
-    let bslTarget = validHighs.length > 0 ? Math.max(...validHighs) : recentHigh;
-    let sslTarget = validLows.length > 0 ? Math.min(...validLows) : recentLow;
+    // Nearest unmitigated high above current price
+    let bslTarget = highs.filter(h => h > currentPrice).sort((a,b)=>a-b)[0] || recentHigh;
+    let sslTarget = lows.filter(l => l < currentPrice).sort((a,b)=>b-a)[0] || recentLow;
 
-    let liqNarrative = `Target Buy-Side Liquidity (BSL) Utama: ${bslTarget.toFixed(2)}. Target Sell-Side Liquidity (SSL) Utama: ${sslTarget.toFixed(2)}. Waspada area ini sering jadi tempat terjadinya 'Sweep' sebelum harga berbalik arah (Reversal).`;
+    let liqNarrative = `Target Buy-Side Liquidity (BSL) terdekat: ${bslTarget.toFixed(2)}. Target Sell-Side Liquidity (SSL) terdekat: ${sslTarget.toFixed(2)}. Waspada area ini sering jadi tempat terjadinya 'Sweep' sebelum harga berbalik arah (Reversal).`;
 
     return {
         tf: tf,
