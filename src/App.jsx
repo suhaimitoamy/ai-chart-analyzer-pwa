@@ -838,16 +838,17 @@ Harga: ${p2(p)}`;
           </section>
         )}
         {tab === "History" && (
-          <section className="terminal">
-            <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px"}}>
-               <Title icon={<History size={16} />} text="Event Logs" />
-               <button className="action" onClick={downloadPdf} style={{padding: "5px 10px", width: "auto", margin: 0, fontSize: "12px", background: "#333", border: "1px solid #555"}}>
-                 <Download size={14} /> TXT
-               </button>
-            </div>
-            <div style={{display:"flex", flexDirection:"column", gap:"5px"}}>
+          <section className="card">
+            <div className="page-title">Event Logs (Auto Jurnal)</div>
+            <p className="muted">Rekaman kejadian krusial otomatis (MSS, FVG, OB).</p>
+            <button className="action" onClick={downloadPdf} style={{margin:"10px 0", background:"#3b82f6", color:"#fff"}}>
+              <Download size={18} /> Download TXT
+            </button>
+            <div style={{marginTop:"20px", display:"flex", flexDirection:"column", gap:"10px"}}>
                {logs.filter(l => l.includes("Momentum") || l.includes("Target") || l.includes("Harga") || l.includes("Terdeteksi") || l.includes("Dijebol")).map((l, i) => (
-                  <div className="log" key={i}>› {l}</div>
+                  <div key={i} style={{background:"#1e1e1e", padding:"15px", borderRadius:"10px", borderLeft:"4px solid var(--primary-gold)"}}>
+                     {l}
+                  </div>
                ))}
                {logs.length === 0 && <div className="muted">Belum ada kejadian tercatat.</div>}
             </div>
