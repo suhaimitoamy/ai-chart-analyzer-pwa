@@ -428,7 +428,8 @@ export default function App() {
     let list = candles[tf] || [];
     let active = current[tf] ? [...list, current[tf]] : list;
     if (active.length > 20) {
-      setLiveNarrative(generateLiveNarrative(active, price, tf));
+      let newNar = generateLiveNarrative(active, price, tf);
+      setLiveNarrative(prev => JSON.stringify(prev) === JSON.stringify(newNar) ? prev : newNar);
     }
   }, [candles, current, price, tf]);
 
@@ -749,7 +750,14 @@ Harga: ${p2(p)}`;
             <section className="card">
               <Title icon={<Radio size={16} />} text="ICT Concepts Covered" />
               <div className="concept-grid">
-                {(latest?.concepts || defConcepts(ses)).map(c => <Concept key={c.title} x={c} />)}
+                {(latest?.concepts || defConcepts(ses)).map(c => {
+                  let xc = { ...c };
+                  if (xc.title === "Kill Zone") {
+                    xc.status = ses.active ? "ACTIVE" : "WAIT";
+                    xc.value = ses.name;
+                  }
+                  return <Concept key={xc.title} x={xc} />;
+                })}
               </div>
             </section>
           </>
