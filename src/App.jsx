@@ -467,16 +467,18 @@ export default function App() {
   
   let ses = useMemo(() => curSession(now), [now]);
   let rows = useMemo(() => sessions(now), [now]);
-  let notifiedEventsCache = useRef(new Map());
+  let notifiedEventsCache = useRef(new Map(JSON.parse(localStorage.getItem("notifiedEvents") || "[]")));
 
   useEffect(() => {
     if (liveNarrative && liveNarrative.criticalEvents && liveNarrative.criticalEvents.length > 0) {
       let nowTime = Date.now();
+      let updated = false;
       liveNarrative.criticalEvents.forEach(evt => {
         let lastTime = notifiedEventsCache.current.get(evt) || 0;
         // 5 minutes cooldown (300000 ms) for the exact same event string
         if (nowTime - lastTime > 300000) {
           notifiedEventsCache.current.set(evt, nowTime);
+          updated = true;
           
           let title = "🚨 Momentum Penting!";
           if (evt.includes("FVG")) title = "🕳️ FVG Tersentuh!";
@@ -493,6 +495,9 @@ export default function App() {
           }
         }
       });
+      if (updated) {
+        localStorage.setItem("notifiedEvents", JSON.stringify(Array.from(notifiedEventsCache.current.entries())));
+      }
     }
   }, [liveNarrative]);
 
