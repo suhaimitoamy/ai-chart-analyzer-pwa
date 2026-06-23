@@ -467,21 +467,32 @@ export default function App() {
   
   let ses = useMemo(() => curSession(now), [now]);
   let rows = useMemo(() => sessions(now), [now]);
-  let lastNotifiedSetup = useRef("");
+  let notifiedEventsCache = useRef(new Map());
 
   useEffect(() => {
-    if (liveNarrative && liveNarrative.saranNarrative && !liveNarrative.saranNarrative.includes("Tidak ada setup")) {
-      let setupMsg = liveNarrative.saranNarrative;
-      if (lastNotifiedSetup.current !== setupMsg) {
-        lastNotifiedSetup.current = setupMsg;
-        if (window.Android && window.Android.showNotification) {
-          window.Android.showNotification("🚨 Setup Terdeteksi!", setupMsg);
-        } else if (Notification && Notification.permission === "granted") {
-          new Notification("🚨 Setup Terdeteksi!", { body: setupMsg });
+    if (liveNarrative && liveNarrative.criticalEvents && liveNarrative.criticalEvents.length > 0) {
+      let nowTime = Date.now();
+      liveNarrative.criticalEvents.forEach(evt => {
+        let lastTime = notifiedEventsCache.current.get(evt) || 0;
+        // 5 minutes cooldown (300000 ms) for the exact same event string
+        if (nowTime - lastTime > 300000) {
+          notifiedEventsCache.current.set(evt, nowTime);
+          
+          let title = "🚨 Momentum Penting!";
+          if (evt.includes("FVG")) title = "🕳️ FVG Tersentuh!";
+          else if (evt.includes("Order Block")) title = "🎯 Order Block Tersentuh!";
+          else if (evt.includes("Dijebol")) title = "💥 Market Structure Shift!";
+
+          if (window.Android && window.Android.showNotificationWithUrl) {
+            window.Android.showNotificationWithUrl(title, evt, window.location.href);
+          } else if (window.Android && window.Android.showNotification) {
+            window.Android.showNotification(title, evt);
+          } else if (Notification && Notification.permission === "granted") {
+            let n = new Notification(title, { body: evt });
+            n.onclick = function() { window.focus(); };
+          }
         }
-      }
-    } else {
-      lastNotifiedSetup.current = "";
+      });
     }
   }, [liveNarrative]);
 
@@ -864,7 +875,9 @@ Harga: ${p2(p)}`;
             <p className="muted">Aktifkan untuk mendengarkan robot suara membacakan sinyal saat aplikasi berjalan.</p>
             <div style={{marginTop:"20px"}} className="label">Uji Coba Notifikasi</div>
             <button className="action" onClick={() => {
-              if (window.Android && window.Android.showNotification) {
+              if (window.Android && window.Android.showNotificationWithUrl) {
+                window.Android.showNotificationWithUrl("✅ Tes Berhasil", "Notifikasi Heads-Up dengan Jalur Khusus (Deep Link) berfungsi! Klik ini akan kembali ke halaman Mapping.", window.location.href);
+              } else if (window.Android && window.Android.showNotification) {
                 window.Android.showNotification("✅ Tes Berhasil", "Notifikasi Heads-Up berfungsi dengan baik di Android!");
               } else if (Notification && Notification.permission === "granted") {
                 new Notification("✅ Tes Berhasil", { body: "Notifikasi browser berfungsi!" });

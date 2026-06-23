@@ -1,6 +1,8 @@
 export function generateLiveNarrative(candles, currentPrice, tf, session) {
     if (!candles || candles.length < 20) return null;
 
+    let criticalEvents = [];
+
     // 1. Calculate Swings (Lookback 5)
     let highs = [], lows = [];
     for (let i = 5; i < candles.length - 5; i++) {
@@ -43,9 +45,11 @@ export function generateLiveNarrative(candles, currentPrice, tf, session) {
     if (currentPrice > recentHigh) {
         mssStatus = "Bullish MSS";
         mssStory = `Terdeteksi Bullish Market Structure Shift (MSS) di ${tf} karena harga baru saja menjebol Swing High (${recentHigh.toFixed(2)}). Menandakan potensi pergantian dominasi ke arah Buy.`;
+        criticalEvents.push(`📈 Resistance (BSL) ${tf} Dijebol! MSS Bullish Terkonfirmasi di harga ${currentPrice.toFixed(2)}.`);
     } else if (currentPrice < recentLow) {
         mssStatus = "Bearish MSS";
         mssStory = `Terdeteksi Bearish Market Structure Shift (MSS) di ${tf} akibat jebolnya Swing Low (${recentLow.toFixed(2)}). Penjual mulai mengambil alih kendali (Sell).`;
+        criticalEvents.push(`📉 Support (SSL) ${tf} Dijebol! MSS Bearish Terkonfirmasi di harga ${currentPrice.toFixed(2)}.`);
     } else {
         let close = lastCandles[lastCandles.length-1].close;
         let open = lastCandles[lastCandles.length-1].open;
@@ -97,13 +101,26 @@ export function generateLiveNarrative(candles, currentPrice, tf, session) {
         // Bullish FVG: c1.high < c3.low
         if (c1.high < c3.low && currentPrice >= c1.high) {
             fvgNarrative = `Terdapat celah Imbalance (Bullish FVG) di area ${c1.high.toFixed(2)} - ${c3.low.toFixed(2)}. Area ini dapat bertindak sebagai magnet pijakan pantulan naik.`;
+            if (currentPrice <= c3.low && currentPrice >= c1.high) {
+                criticalEvents.push(`🕳️ Harga menyentuh zona Bullish FVG ${tf} (${c1.high.toFixed(2)} - ${c3.low.toFixed(2)}). Siap-siap pantulan naik!`);
+            }
             foundFvg = true; break;
         }
         // Bearish FVG: c1.low > c3.high
         if (c1.low > c3.high && currentPrice <= c1.low) {
             fvgNarrative = `Terdapat celah Imbalance (Bearish FVG) di area ${c3.high.toFixed(2)} - ${c1.low.toFixed(2)}. Area ini dapat bertindak sebagai magnet pijakan pantulan turun.`;
+            if (currentPrice >= c3.high && currentPrice <= c1.low) {
+                criticalEvents.push(`🕳️ Harga menyentuh zona Bearish FVG ${tf} (${c3.high.toFixed(2)} - ${c1.low.toFixed(2)}). Siap-siap pantulan turun!`);
+            }
             foundFvg = true; break;
         }
+    }
+
+    // Order Block Hit Detection (simplified)
+    if (currentPrice <= eq && currentPrice <= recentLow + (range * 0.2)) {
+        criticalEvents.push(`🎯 Harga memasuki area Order Block / Discount ${tf} yang sangat murah. Potensi kuat untuk Buy!`);
+    } else if (currentPrice >= eq && currentPrice >= recentHigh - (range * 0.2)) {
+        criticalEvents.push(`🎯 Harga memasuki area Order Block / Premium ${tf} yang sangat mahal. Potensi kuat untuk Sell!`);
     }
 
     // Draw on Liquidity (DOL) Synthesizer
@@ -149,6 +166,7 @@ export function generateLiveNarrative(candles, currentPrice, tf, session) {
         fvgNarrative: fvgNarrative,
         dolNarrative: dolNarrative,
         saranNarrative: saranNarrative,
-        price: currentPrice
+        price: currentPrice,
+        criticalEvents: criticalEvents
     };
 }
